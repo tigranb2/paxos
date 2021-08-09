@@ -5,5 +5,7 @@ proposers:
     - "dog" # proposer 2 uses value "dog"
 acceptors:
   count: 3
-  ipRange: "localhost" # uses ip address in this range
-  portRange: "8000-8010" # acceptor 1 uses :8000, acceptor 2 uses :8001, etc.
+  initIP: "127.0.0.1" # start with this ip
+  incrementIP: false # whether each node has a unique ip
+  initPort: "8000"
+  incrementPort: true # whether each node has a unique port

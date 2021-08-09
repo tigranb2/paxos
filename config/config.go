@@ -6,26 +6,29 @@ import (
 	"path/filepath"
 )
 
-type config struct {
+type Config struct {
 	Proposers struct {
-		Count int `yaml:"count"`
+		Count  int      `yaml:"count"`
 		Values []string `yaml:"values"`
 	}
 	Acceptors struct {
-		Count int `yaml:"count"`
-		ipRange string `yaml:"ipRange"`
-		portRange string `yaml:"portRange"`
+		Count         int    `yaml:"count"`
+		InitIP        string `yaml:"initIP"`
+		IncrementIP   bool   `yaml:"incrementIP"`
+		InitPort      string `yaml:"initPort"`
+		IncrementPort bool   `yaml:"incrementPort"`
 	}
 }
 
-func parseConfig() config {
+//ParseConfig parses config.yaml
+func ParseConfig() Config {
 	filename, _ := filepath.Abs("./config.yaml")
 	yamlFile, err := ioutil.ReadFile(filename)
 	if err != nil {
 		panic(err)
 	}
 
-	var configData config
+	var configData Config
 
 	err = yaml.Unmarshal(yamlFile, &configData)
 	if err != nil {
