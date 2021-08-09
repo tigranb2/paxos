@@ -1,13 +1,12 @@
-package roles
+package network
 
 import (
 	"errors"
 	"paxos/msg"
-	"paxos/network"
 )
 
 type Acceptor struct {
-	Ip string
+	Ip       string
 	promised int64
 	accepted string
 }
@@ -17,14 +16,14 @@ func InitAcceptor(ip string) Acceptor {
 }
 
 func (a *Acceptor) Run() {
-	network.ServerInit(a)
+	serverInit(a)
 }
 
-func (a *Acceptor) AcceptMsg(rec *msg.Msg) (*msg.Msg, error) {
+func (a *Acceptor) acceptMsg(rec *msg.Msg) (*msg.Msg, error) {
 	switch rec.GetType() {
 	case msg.Type_Prepare:
 		//promise to ignore ids lower than received id
-		if rec.GetId() > a.promised  {
+		if rec.GetId() > a.promised {
 			if a.accepted != "" { //case where node has accepted prior value
 				resp := msg.Msg{Type: msg.Type_Promise, Id: rec.GetId(), Value: a.accepted, PreviousId: a.promised}
 				a.promised = rec.GetId()

@@ -2,34 +2,33 @@ package network
 
 import (
 	"context"
+	"fmt"
 	"google.golang.org/grpc"
 	"log"
 	"net"
 	"paxos/msg"
-	"paxos/roles"
 )
 
 type server struct {
 	msg.UnimplementedMessengerServer
-	acceptor *roles.Acceptor
+	acceptor *Acceptor
 }
 
 func (s *server) SendMsg(ctx context.Context, msg *msg.Msg) (*msg.Msg, error) {
-	return s.acceptor.AcceptMsg(msg)
+	fmt.Printf("Received message %+v\n", msg)
+	return s.acceptor.acceptMsg(msg)
 }
 
-func ServerInit(a *roles.Acceptor) {
+func serverInit(a *Acceptor) {
 	ln, err := net.Listen("tcp", a.Ip)
 	if err != nil {
-		log.Fatalf("Failed to start server: %v", err)
+		log.Fatalf("failed to start server: %v", err)
 	}
 
 	s := server{acceptor: a}
-
 	grpcServer := grpc.NewServer()
-	if err := grpcServer.Serve(ln); err != nil {
-		log.Fatalf("Failed to serve gRPC server: %v", err)
-	}
-
 	msg.RegisterMessengerServer(grpcServer, &s)
+	if err := grpcServer.Serve(ln); err != nil {
+		log.Fatalf("failed to serve gRPC server: %v", err)
+	}
 }
