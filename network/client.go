@@ -3,7 +3,6 @@ package network
 import (
 	"context"
 	"google.golang.org/grpc"
-	"log"
 	"paxos/msg"
 	"time"
 )
@@ -11,14 +10,15 @@ import (
 func msgServer(ip string, p *Proposer) {
 	//dials server if connection does not already exist
 	if p.connections[ip] == nil {
-		conn, err := grpc.Dial(ip, grpc.WithInsecure(), grpc.WithBlock())
+		ctx, _ := context.WithTimeout(context.Background(), 2*time.Second)
+		conn, err := grpc.DialContext(ctx, ip, grpc.WithInsecure(), grpc.WithBlock())
 		if err != nil {
-			log.Fatalf("did not connect: %v", err)
+			return
 		}
+
 		c := msg.NewMessengerClient(conn)
 		p.connections[ip] = c //save connection to proposer's map
 	}
-
 	c := p.connections[ip]
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
