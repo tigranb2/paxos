@@ -27,7 +27,7 @@ func (p *Proposer) Run(stop chan string) {
 				if p.data.GetType() == msg.Type_Prepare {
 					//move from prepare to propose phase
 					p.data.Type = msg.Type_Propose
-					p.Broadcast()
+					go p.Broadcast()
 				} else {
 					//move from propose phase to termination (consensus reached)
 					stop <- p.data.GetValue()
@@ -45,7 +45,7 @@ func (p *Proposer) Run(stop chan string) {
 				} else if p.data.GetType() == msg.Type_Propose {
 					proposeAttempt++
 				}
-				p.Broadcast()
+				go p.Broadcast()
 			}
 		}
 	}
