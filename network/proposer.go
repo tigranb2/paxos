@@ -56,6 +56,7 @@ func (p *Proposer) Run(stop chan []string) {
 						pMsg.Type = msg.Type_Prepare
 						pMsg.Id = time.Now().UnixNano()
 					} else { //propose phase failed less than 3 times
+						pData.accepts = 0
 						pData.proposeAttempt++
 					}
 				}
