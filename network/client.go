@@ -24,6 +24,9 @@ func msgServer(ip string, p *Proposer) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	//Send message to proposer with 1 sec timeout
-	rec, _ := c.SendMsg(ctx, p.data)
+	rec, err := c.SendMsg(ctx, p.data)
+	if err != nil {
+		return
+	}
 	p.handleResponse(rec)
 }
