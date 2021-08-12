@@ -7,6 +7,7 @@ import (
 )
 
 type Config struct {
+	Instances int `yaml:"instances"`
 	Proposers struct {
 		Count  int      `yaml:"count"`
 		Values []string `yaml:"values"`

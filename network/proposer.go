@@ -1,52 +1,73 @@
 package network
 
 import (
+	"fmt"
 	"math/rand"
 	"paxos/msg"
 	"time"
 )
 
 type Proposer struct {
-	data              msg.Msg                        //stores proposed id, value, and current phase
-	promises, accepts int                            //keeps track of responses for quorum
-	connections       map[string]msg.MessengerClient //store server connections for optimization
-	quorum            int
-	quorumStatus      chan bool
+	connections  map[string]msg.MessengerClient //store server connections for optimization
+	converged    []string                       //stores values of converged instances
+	data         *msg.MsgSlice                  //stores proposed id, value, and current phase for all instances
+	quorum       int
+	quorumsData  map[int32]*quorumData //keeps track of responses for quorum
+	quorumStatus chan bool
 }
 
-func InitProposer(value string, connections []string, quorum int) Proposer {
-	return Proposer{data: msg.Msg{Type: msg.Type_Prepare, Id: time.Now().UnixNano(), Value: value}, connections: initConnectionsMap(connections), quorum: quorum, quorumStatus: make(chan bool)}
+type quorumData struct {
+	promises, accepts int
+	proposeAttempt    int //stores number of times proposer has attempted propose phase
 }
 
-func (p *Proposer) Run(stop chan string) {
-	proposeAttempt := 0
+func InitProposer(instanceCount int, value string, connections []string, quorum int) Proposer {
+	data := msg.MsgSlice{}
+	data.Msgs = make(map[int32]*msg.Msg)
+	quorumsData := make(map[int32]*quorumData)
+	for i := 1; i <= instanceCount; i++ { //initialize maps
+		data.Msgs[int32(i)] = &msg.Msg{Type: msg.Type_Prepare, Id: time.Now().UnixNano(), Value: value}
+		quorumsData[int32(i)] = &quorumData{}
+	}
+	return Proposer{connections: initConnectionsMap(connections), data: &data, quorum: quorum, quorumsData: quorumsData, quorumStatus: make(chan bool)}
+}
+
+func (p *Proposer) Run(stop chan []string) {
 	for {
 		select {
-		case quorumMet := <-p.quorumStatus:
-			if quorumMet == true {
-				if p.data.GetType() == msg.Type_Prepare {
-					//move from prepare to propose phase
-					p.data.Type = msg.Type_Propose
-					go p.Broadcast()
+		case <-p.quorumStatus:
+			for instance, m := range p.data.GetMsgs() {
+				pData := p.quorumsData[instance]
+				pMsg := p.data.Msgs[instance]
+				if m.GetType() == msg.Type_Prepare {
+					if pData.promises >= p.quorum { //prepare phase passed
+						pMsg.Type = msg.Type_Propose
+					} else { //prepare phase failed
+						pData.promises = 0
+						pMsg.Id = time.Now().UnixNano()
+					}
 				} else {
-					//move from propose phase to termination (consensus reached)
-					stop <- p.data.GetValue()
+					if pData.accepts >= p.quorum { //propose phase passed
+						p.converged = append(p.converged, fmt.Sprintf("Instance %v converged on %v", instance, pMsg.GetValue()))
+						delete(p.data.Msgs, instance)
+					} else if pData.proposeAttempt == 3 { //propose phase failed 3 times
+						pData.proposeAttempt = 0
+						pData.accepts = 0
+						pMsg.Type = msg.Type_Prepare
+						pMsg.Id = time.Now().UnixNano()
+					} else { //propose phase failed less than 3 times
+						pData.proposeAttempt++
+					}
 				}
-			} else {
-				p.promises, p.accepts = 0, 0
-				if p.data.GetType() == msg.Type_Prepare {
-					//proposer restarts prepare phase with a different id
-					p.data.Id = time.Now().UnixNano()
-				} else if proposeAttempt == 3 {
-					//proposer returns to prepare phase after 3 failed propose attempts
-					proposeAttempt = 0
-					p.data.Type = msg.Type_Prepare
-					p.data.Id = time.Now().UnixNano()
-				} else if p.data.GetType() == msg.Type_Propose {
-					proposeAttempt++
-				}
-				go p.Broadcast()
 			}
+
+			//terminate when all instances of the proposer converge
+			if len(p.data.GetMsgs()) == 0 {
+				stop <- p.converged
+				return
+			}
+
+			go p.Broadcast()
 		}
 	}
 }
@@ -58,35 +79,30 @@ func (p *Proposer) Broadcast() {
 
 	n := rand.Intn(1000)
 	time.Sleep(time.Millisecond * time.Duration(n)) //sleep to break proposer ties
-
-	if p.data.GetType() == msg.Type_Prepare && p.promises < p.quorum { //prepare phase fails
-		p.quorumStatus <- false
-	} else if p.data.GetType() == msg.Type_Prepare && p.promises >= p.quorum { //prepare phase succeeds
-		p.quorumStatus <- true
-	} else if p.data.GetType() == msg.Type_Propose && p.accepts < p.quorum { //propose phase fails
-		p.quorumStatus <- false
-	} else if p.data.GetType() == msg.Type_Propose && p.accepts >= p.quorum { //propose phase succeeds
-		p.quorumStatus <- true
-	}
+	p.quorumStatus <- true
 }
 
-func (p *Proposer) handleResponse(rec *msg.Msg, err error) {
-	if err != nil { //simulate timeout
-		return
-	}
-	switch rec.GetType() {
-	case msg.Type_Promise:
-		if p.data.GetType() == msg.Type_Prepare { //check that proposer is asking for promises
-			p.promises++
-			//handles case where acceptor accepted previous value
-			if rec.GetPreviousId() != 0 && rec.GetPreviousId() > p.data.GetPreviousId() { //checks if previously accepted value is newest one seen
-				p.data.Value = rec.GetValue()
-				p.data.PreviousId = rec.GetPreviousId()
-			}
+func (p *Proposer) handleResponse(rec *msg.MsgSlice) {
+	for instance, recMsg := range rec.Msgs {
+		if recMsg.GetId() == 0 { //simulate timeout
+			return
 		}
-	case msg.Type_Accept:
-		if p.data.GetType() == msg.Type_Propose {
-			p.accepts++
+		pMsg := p.data.Msgs[instance]
+		pData := p.quorumsData[instance]
+		switch recMsg.GetType() {
+		case msg.Type_Promise:
+			if pMsg.GetType() == msg.Type_Prepare { //check that proposer is asking for promises
+				pData.promises++
+				//handles case where acceptor accepted previous value
+				if recMsg.GetPreviousId() != 0 && recMsg.GetPreviousId() > pMsg.GetPreviousId() { //checks if previously accepted value is newest one seen
+					pMsg.Value = recMsg.GetValue()
+					pMsg.PreviousId = recMsg.GetPreviousId()
+				}
+			}
+		case msg.Type_Accept:
+			if pMsg.GetType() == msg.Type_Propose {
+				pData.accepts++
+			}
 		}
 	}
 }

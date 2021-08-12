@@ -1,3 +1,4 @@
+instances: 3
 proposers:
   count: 2
   values:

@@ -22,7 +22,7 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type MessengerClient interface {
-	SendMsg(ctx context.Context, in *Msg, opts ...grpc.CallOption) (*Msg, error)
+	SendMsg(ctx context.Context, in *MsgSlice, opts ...grpc.CallOption) (*MsgSlice, error)
 }
 
 type messengerClient struct {
@@ -33,8 +33,8 @@ func NewMessengerClient(cc grpc.ClientConnInterface) MessengerClient {
 	return &messengerClient{cc}
 }
 
-func (c *messengerClient) SendMsg(ctx context.Context, in *Msg, opts ...grpc.CallOption) (*Msg, error) {
-	out := new(Msg)
+func (c *messengerClient) SendMsg(ctx context.Context, in *MsgSlice, opts ...grpc.CallOption) (*MsgSlice, error) {
+	out := new(MsgSlice)
 	err := c.cc.Invoke(ctx, "/msg.Messenger/SendMsg", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -46,7 +46,7 @@ func (c *messengerClient) SendMsg(ctx context.Context, in *Msg, opts ...grpc.Cal
 // All implementations must embed UnimplementedMessengerServer
 // for forward compatibility
 type MessengerServer interface {
-	SendMsg(context.Context, *Msg) (*Msg, error)
+	SendMsg(context.Context, *MsgSlice) (*MsgSlice, error)
 	mustEmbedUnimplementedMessengerServer()
 }
 
@@ -54,7 +54,7 @@ type MessengerServer interface {
 type UnimplementedMessengerServer struct {
 }
 
-func (UnimplementedMessengerServer) SendMsg(context.Context, *Msg) (*Msg, error) {
+func (UnimplementedMessengerServer) SendMsg(context.Context, *MsgSlice) (*MsgSlice, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SendMsg not implemented")
 }
 func (UnimplementedMessengerServer) mustEmbedUnimplementedMessengerServer() {}
@@ -71,7 +71,7 @@ func RegisterMessengerServer(s grpc.ServiceRegistrar, srv MessengerServer) {
 }
 
 func _Messenger_SendMsg_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(Msg)
+	in := new(MsgSlice)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -83,7 +83,7 @@ func _Messenger_SendMsg_Handler(srv interface{}, ctx context.Context, dec func(i
 		FullMethod: "/msg.Messenger/SendMsg",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(MessengerServer).SendMsg(ctx, req.(*Msg))
+		return srv.(MessengerServer).SendMsg(ctx, req.(*MsgSlice))
 	}
 	return interceptor(ctx, in, info, handler)
 }

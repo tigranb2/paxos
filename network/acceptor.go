@@ -1,47 +1,60 @@
 package network
 
 import (
-	"errors"
 	"paxos/msg"
 )
 
 type Acceptor struct {
-	Ip       string
+	Ip           string
+	acceptorData map[int32]*consensusData
+}
+
+type consensusData struct {
 	promised int64
 	accepted string
 }
 
-func InitAcceptor(ip string) Acceptor {
-	return Acceptor{Ip: ip}
+func InitAcceptor(ip string, instances int) Acceptor {
+	aData := make(map[int32]*consensusData)
+	for i := 1; i <= instances; i++ {
+		aData[int32(i)] = &consensusData{}
+	}
+	return Acceptor{Ip: ip, acceptorData: aData}
 }
 
 func (a *Acceptor) Run() {
 	serverInit(a)
 }
 
-func (a *Acceptor) acceptMsg(rec *msg.Msg) (*msg.Msg, error) {
-	switch rec.GetType() {
-	case msg.Type_Prepare:
-		//promise to ignore ids lower than received id
-		if rec.GetId() > a.promised {
-			if a.accepted != "" { //case where node has accepted prior value
-				resp := msg.Msg{Type: msg.Type_Promise, Id: rec.GetId(), Value: a.accepted, PreviousId: a.promised}
-				a.promised = rec.GetId()
-				return &resp, nil
+func (a *Acceptor) acceptMsg(rec *msg.MsgSlice) *msg.MsgSlice {
+	resp := msg.MsgSlice{Msgs: make(map[int32]*msg.Msg)}
+	for instance, recMsg := range rec.Msgs {
+		aData := a.acceptorData[instance]
+		var r msg.Msg
+		switch recMsg.GetType() {
+		case msg.Type_Prepare:
+			//promise to ignore ids lower than received id
+			if recMsg.GetId() > aData.promised {
+				if aData.accepted != "" { //case where node has accepted prior value
+					aData.promised = recMsg.GetId()
+					r = msg.Msg{Type: msg.Type_Promise, Id: recMsg.GetId(), Value: aData.accepted, PreviousId: aData.promised}
+				} else {
+					aData.promised = recMsg.GetId()
+					r = msg.Msg{Type: msg.Type_Promise, Id: recMsg.GetId()}
+				}
 			} else {
-				resp := msg.Msg{Type: msg.Type_Promise, Id: rec.GetId()}
-				a.promised = rec.GetId()
-				return &resp, nil
+				r = msg.Msg{Type: msg.Type_Promise, Id: 0}
+			}
+		case msg.Type_Propose:
+			//accept proposed value
+			if aData.promised == recMsg.GetId() {
+				aData.accepted = recMsg.GetValue()
+				r = msg.Msg{Type: msg.Type_Accept, Id: recMsg.GetId(), Value: recMsg.GetValue()}
+			} else {
+				r = msg.Msg{Type: msg.Type_Promise, Id: 0}
 			}
 		}
-	case msg.Type_Propose:
-		//accept proposed value
-		if a.promised == rec.GetId() {
-			a.accepted = rec.GetValue()
-			resp := msg.Msg{Type: msg.Type_Accept, Id: rec.GetId(), Value: rec.GetValue()}
-			return &resp, nil
-		}
+		resp.Msgs[instance] = &r
 	}
-
-	return nil, errors.New("placeholder") //simulate timeout by returning error
+	return &resp
 }

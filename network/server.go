@@ -14,9 +14,9 @@ type server struct {
 	acceptor *Acceptor
 }
 
-func (s *server) SendMsg(ctx context.Context, msg *msg.Msg) (*msg.Msg, error) {
+func (s *server) SendMsg(ctx context.Context, msg *msg.MsgSlice) (*msg.MsgSlice, error) {
 	fmt.Printf("Received message %+v\n", msg)
-	return s.acceptor.acceptMsg(msg)
+	return s.acceptor.acceptMsg(msg), nil
 }
 
 func serverInit(a *Acceptor) {

@@ -26,14 +26,16 @@ func main() {
 
 	switch arguments[1] {
 	case "p":
-		stop := make(chan string)
-		p := network.InitProposer(configData.Proposers.Values[nodeId-1], connections, quorum)
+		stop := make(chan []string)
+		p := network.InitProposer(configData.Instances, configData.Proposers.Values[nodeId-1], connections, quorum)
 		go p.Run(stop)
 		p.Broadcast()
 		value := <-stop
-		fmt.Printf("Consensus reached! Value: %v.\n", value)
+		for _, str := range value {
+			fmt.Println(str)
+		}
 	case "a":
-		a := network.InitAcceptor(connections[nodeId-1])
+		a := network.InitAcceptor(connections[nodeId-1], configData.Instances)
 		a.Run()
 	}
 }

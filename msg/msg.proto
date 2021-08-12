@@ -1,10 +1,10 @@
 syntax = "proto3";
 
 package msg;
-option go_package = "./";
+option go_package = "./msg";
 
 service Messenger{
-  rpc SendMsg (Msg) returns (Msg) {}
+  rpc SendMsg (MsgSlice) returns (MsgSlice) {}
 }
 
 //Types of messages nodes can send to one another
@@ -21,4 +21,8 @@ message Msg{
   int64 id = 2;
   string value = 3;
   int64 previousId = 4; //id of previously accepted value
+}
+
+message MsgSlice{
+  map<int32, Msg> msgs = 1;
 }
