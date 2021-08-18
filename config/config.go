@@ -7,12 +7,15 @@ import (
 )
 
 type Config struct {
-	Instances int `yaml:"instances"`
-	Proposers struct {
-		Count  int      `yaml:"count"`
-		Values []string `yaml:"values"`
-	}
+	Timeout   int `yaml:"timeout"`
 	Acceptors struct {
+		Count         int    `yaml:"count"`
+		InitIP        string `yaml:"initIP"`
+		IncrementIP   bool   `yaml:"incrementIP"`
+		InitPort      string `yaml:"initPort"`
+		IncrementPort bool   `yaml:"incrementPort"`
+	}
+	Proposers struct {
 		Count         int    `yaml:"count"`
 		InitIP        string `yaml:"initIP"`
 		IncrementIP   bool   `yaml:"incrementIP"`

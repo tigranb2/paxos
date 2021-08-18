@@ -1,12 +1,13 @@
-instances: 3
-proposers:
-  count: 2
-  values:
-    - "cat" # proposer 1 uses value "cat"
-    - "dog" # proposer 2 uses value "dog"
+timeout: 3 # time out in seconds for client
 acceptors:
   count: 3
   initIP: "127.0.0.1" # start with this ip
   incrementIP: false # whether each node has a unique ip
   initPort: "8000"
+  incrementPort: true # whether each node has a unique port
+proposers:
+  count: 2
+  initIP: "127.0.0.1" # start with this ip
+  incrementIP: false # whether each node has a unique ip
+  initPort: "9000"
   incrementPort: true # whether each node has a unique port
