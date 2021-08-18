@@ -4,7 +4,8 @@ package msg;
 option go_package = "./msg";
 
 service Messenger{
-  rpc SendMsg (MsgSlice) returns (MsgSlice) {}
+  rpc MsgAcceptor (Msg) returns (Msg) {}
+  rpc MsgProposer (QueueRequest) returns (RequestResponse) {}
 }
 
 //Types of messages nodes can send to one another
@@ -17,12 +18,21 @@ enum Type{
 
 //Data type used for inter-node communication
 message Msg{
-  Type type  = 1;
-  int64 id = 2;
-  string value = 3;
-  int64 previousId = 4; //id of previously accepted value
+  Type type = 1;
+  int32 slotIndex = 2;
+  int64 id = 3;
+  string value = 4;
+  int64 previousId = 5; //id of previously accepted value
+  int64 priority = 6; //stores priority msg had as QueueRequest
 }
 
-message MsgSlice{
-  map<int32, Msg> msgs = 1;
+//Data type for values stored in queue
+message QueueRequest {
+  int64 priority = 1;
+  string value = 2;
+}
+
+//Return type for rpc call to Proposer
+message RequestResponse{
+  bool requestReceived = 1;
 }
