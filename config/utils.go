@@ -13,24 +13,29 @@ func (configData *Config) GetQuorum() int {
 	return configData.Acceptors.Count/2 + 1
 }
 
-//ParseNetworkRanges parses ip and port ranges and checks for valid input
-func (configData *Config) ParseNetworkRanges() (connections []string) {
-	ip := net.ParseIP(configData.Acceptors.InitIP)
+//ParseSockets parses socket info from config for either Acceptors or Proposers
+func (configData *Config) ParseSockets(nodeType string) (connections []string) {
+	node := configData.Acceptors
+	if nodeType == "proposer" {
+		node = configData.Proposers
+	}
+
+	ip := net.ParseIP(node.InitIP)
 	if ip == nil {
 		log.Fatalf("initIP is not a valid ipv4 address")
 	}
 
-	port, err := strconv.Atoi(configData.Acceptors.InitPort)
+	port, err := strconv.Atoi(node.InitPort)
 	if err != nil {
 		log.Fatalf("initPort is not a valid port")
 	}
 
 	connections = append(connections, ip.String()+":"+strconv.Itoa(port))
-	for i := 1; i < configData.Acceptors.Count; i++ {
-		if configData.Acceptors.IncrementIP {
+	for i := 1; i < node.Count; i++ {
+		if node.IncrementIP {
 			ip = nextIP(ip, 1)
 		}
-		if configData.Acceptors.IncrementPort {
+		if node.IncrementPort {
 			port++
 		}
 
