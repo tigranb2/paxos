@@ -22,20 +22,19 @@ func main() {
 
 	configData := config.ParseConfig()
 	quorum := configData.GetQuorum()
-	connections := configData.ParseNetworkRanges()
+	acceptorSockets := configData.ParseSockets("acceptor")
+	proposerSockets := configData.ParseSockets("proposer")
 
 	switch arguments[1] {
-	case "p":
-		stop := make(chan []string)
-		p := network.InitProposer(configData.Instances, configData.Proposers.Values[nodeId-1], connections, quorum)
-		go p.Run(stop)
-		p.Broadcast()
-		value := <-stop
-		for _, str := range value {
-			fmt.Println(str)
-		}
 	case "a":
-		a := network.InitAcceptor(connections[nodeId-1], configData.Instances)
+		a := network.InitAcceptor(acceptorSockets[nodeId-1])
 		a.Run()
+	case "p":
+		p := network.InitProposer(acceptorSockets, nodeId, proposerSockets[nodeId-1], quorum)
+		p.Run()
+	case "c":
+		c := network.InitClient(proposerSockets[nodeId-1], configData.Timeout)
+		c.CloseLoopClient()
 	}
+
 }
