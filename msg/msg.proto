@@ -5,7 +5,8 @@ option go_package = "./msg";
 
 service Messenger{
   rpc MsgAcceptor (Msg) returns (Msg) {}
-  rpc MsgProposer (QueueRequest) returns (RequestResponse) {}
+  rpc MsgProposer (QueueRequest) returns (SlotValue) {}
+  rpc MsgLearner (SlotValue) returns (Empty) {}
 }
 
 //Types of messages nodes can send to one another
@@ -14,6 +15,7 @@ enum Type{
   Promise = 1;
   Propose = 2;
   Accept = 3;
+  Commit = 4; //used by Proposer when communicating with Learner
 }
 
 //Data type used for inter-node communication
@@ -32,7 +34,11 @@ message QueueRequest {
   string value = 2;
 }
 
-//Return type for rpc call to Proposer
-message RequestResponse{
-  bool requestReceived = 1;
+//Type used for sending information about a slot's value
+message SlotValue {
+  Type type = 1;
+  int32 slotIndex = 2;
+  string value = 3;
 }
+
+message Empty {}

@@ -5,7 +5,7 @@ import (
 	"log"
 	"os"
 	"paxos/config"
-	"paxos/network"
+	"paxos/roles"
 	"strconv"
 )
 
@@ -27,13 +27,13 @@ func main() {
 
 	switch arguments[1] {
 	case "a":
-		a := network.InitAcceptor(acceptorSockets[nodeId-1])
+		a := roles.InitAcceptor(acceptorSockets[nodeId-1], proposerSockets)
 		a.Run()
 	case "p":
-		p := network.InitProposer(acceptorSockets, nodeId, proposerSockets[nodeId-1], quorum)
+		p := roles.InitProposer(acceptorSockets, nodeId, proposerSockets[nodeId-1], quorum)
 		p.Run()
 	case "c":
-		c := network.InitClient(proposerSockets[nodeId-1], configData.Timeout)
+		c := roles.InitClient(nodeId, proposerSockets, configData.Timeout)
 		c.CloseLoopClient()
 	}
 

@@ -23,7 +23,8 @@ const _ = grpc.SupportPackageIsVersion7
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type MessengerClient interface {
 	MsgAcceptor(ctx context.Context, in *Msg, opts ...grpc.CallOption) (*Msg, error)
-	MsgProposer(ctx context.Context, in *QueueRequest, opts ...grpc.CallOption) (*RequestResponse, error)
+	MsgProposer(ctx context.Context, in *QueueRequest, opts ...grpc.CallOption) (*SlotValue, error)
+	MsgLearner(ctx context.Context, in *SlotValue, opts ...grpc.CallOption) (*Empty, error)
 }
 
 type messengerClient struct {
@@ -43,9 +44,18 @@ func (c *messengerClient) MsgAcceptor(ctx context.Context, in *Msg, opts ...grpc
 	return out, nil
 }
 
-func (c *messengerClient) MsgProposer(ctx context.Context, in *QueueRequest, opts ...grpc.CallOption) (*RequestResponse, error) {
-	out := new(RequestResponse)
+func (c *messengerClient) MsgProposer(ctx context.Context, in *QueueRequest, opts ...grpc.CallOption) (*SlotValue, error) {
+	out := new(SlotValue)
 	err := c.cc.Invoke(ctx, "/msg.Messenger/MsgProposer", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *messengerClient) MsgLearner(ctx context.Context, in *SlotValue, opts ...grpc.CallOption) (*Empty, error) {
+	out := new(Empty)
+	err := c.cc.Invoke(ctx, "/msg.Messenger/MsgLearner", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -57,7 +67,8 @@ func (c *messengerClient) MsgProposer(ctx context.Context, in *QueueRequest, opt
 // for forward compatibility
 type MessengerServer interface {
 	MsgAcceptor(context.Context, *Msg) (*Msg, error)
-	MsgProposer(context.Context, *QueueRequest) (*RequestResponse, error)
+	MsgProposer(context.Context, *QueueRequest) (*SlotValue, error)
+	MsgLearner(context.Context, *SlotValue) (*Empty, error)
 	mustEmbedUnimplementedMessengerServer()
 }
 
@@ -68,8 +79,11 @@ type UnimplementedMessengerServer struct {
 func (UnimplementedMessengerServer) MsgAcceptor(context.Context, *Msg) (*Msg, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method MsgAcceptor not implemented")
 }
-func (UnimplementedMessengerServer) MsgProposer(context.Context, *QueueRequest) (*RequestResponse, error) {
+func (UnimplementedMessengerServer) MsgProposer(context.Context, *QueueRequest) (*SlotValue, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method MsgProposer not implemented")
+}
+func (UnimplementedMessengerServer) MsgLearner(context.Context, *SlotValue) (*Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method MsgLearner not implemented")
 }
 func (UnimplementedMessengerServer) mustEmbedUnimplementedMessengerServer() {}
 
@@ -120,6 +134,24 @@ func _Messenger_MsgProposer_Handler(srv interface{}, ctx context.Context, dec fu
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Messenger_MsgLearner_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SlotValue)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MessengerServer).MsgLearner(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/msg.Messenger/MsgLearner",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MessengerServer).MsgLearner(ctx, req.(*SlotValue))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Messenger_ServiceDesc is the grpc.ServiceDesc for Messenger service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -134,6 +166,10 @@ var Messenger_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "MsgProposer",
 			Handler:    _Messenger_MsgProposer_Handler,
+		},
+		{
+			MethodName: "MsgLearner",
+			Handler:    _Messenger_MsgLearner_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

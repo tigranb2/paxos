@@ -1,13 +1,17 @@
-package network
+package roles
 
 import (
+	"context"
 	"errors"
 	"paxos/msg"
+	"time"
 )
 
 type Acceptor struct {
 	acceptorData map[int32]*consensusData
-	ip           string //socket for Acceptor server
+	connections  map[int]msg.MessengerClient //connections to proposers
+	ip           string                      //socket for Acceptor server
+	ips          []string                    //sockets of all Proposers
 }
 
 type consensusData struct {
@@ -15,8 +19,8 @@ type consensusData struct {
 	accepted string
 }
 
-func InitAcceptor(ip string) Acceptor {
-	return Acceptor{ip: ip, acceptorData: make(map[int32]*consensusData)}
+func InitAcceptor(ip string, ips []string) Acceptor {
+	return Acceptor{acceptorData: make(map[int32]*consensusData), connections: createConnections(ips), ip: ip, ips: ips}
 }
 
 func (a *Acceptor) Run() {
@@ -53,4 +57,30 @@ func (a *Acceptor) acceptMsg(rec *msg.Msg) (r *msg.Msg, err error) {
 		}
 	}
 	return r, err
+}
+
+func (a *Acceptor) broadcast(m *msg.SlotValue) {
+	for proposerId := range a.connections {
+		//dials server if connection does not already exist
+		if _, ok := a.connections[proposerId]; !ok {
+			if c := dialServer(a.ips[proposerId-1]); c != nil {
+				a.connections[proposerId] = c //save connection to acceptor's map
+			} else {
+				continue
+			}
+		}
+
+		a.callProposer(proposerId+1, m)
+	}
+}
+
+func (a *Acceptor) callProposer(proposerId int, m *msg.SlotValue) {
+	c := a.connections[proposerId]
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	//Send message to learner with 1 sec timeout
+	_, err := c.MsgLearner(ctx, m)
+	if err != nil {
+		return
+	}
 }

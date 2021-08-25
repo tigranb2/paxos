@@ -1,4 +1,4 @@
-package network
+package roles
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"paxos/msg"
+	"time"
 )
 
 type server struct {
@@ -15,25 +16,25 @@ type server struct {
 }
 
 func (s *server) MsgAcceptor(ctx context.Context, msg *msg.Msg) (*msg.Msg, error) {
-	acceptor, ok := s.node.(*Acceptor)
+	a, ok := s.node.(*Acceptor)
 	if !ok {
 		log.Fatalf("destination server must be an acceptor")
 	}
 
 	fmt.Printf("Received message %+v\n", msg)
-	return acceptor.acceptMsg(msg)
+	return a.acceptMsg(msg)
 }
 
-func (s *server) MsgProposer(ctx context.Context, request *msg.QueueRequest) (*msg.RequestResponse, error) {
-	proposer, ok := s.node.(*Proposer)
+func (s *server) MsgProposer(ctx context.Context, request *msg.QueueRequest) (*msg.SlotValue, error) {
+	p, ok := s.node.(*Proposer)
 	if !ok {
 		log.Fatalf("destination server must be a proposer")
 	}
 
-	proposer.clientRequest <- request
+	p.clientRequest <- *request
 	select {
-	case <-proposer.clientRequest:
-		return &msg.RequestResponse{RequestReceived: true}, nil
+	case resp := <-p.clientRequest:
+		return resp.(*msg.SlotValue), nil
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
@@ -64,4 +65,34 @@ func serverInit(node interface{}) {
 	if err := grpcServer.Serve(ln); err != nil {
 		log.Fatalf("failed to serve gRPC server: %v", err)
 	}
+}
+
+func (s *server) MsgLearner(ctx context.Context, msg *msg.SlotValue) (*msg.Empty, error) {
+	p, ok := s.node.(*Proposer)
+	if !ok {
+		log.Fatalf("destination server must be a proposer")
+	}
+
+	p.learnerMsgs <- msg
+	return nil, nil
+}
+
+func createConnections(ips []string) map[int]msg.MessengerClient {
+	connections := make(map[int]msg.MessengerClient)
+	for id, ip := range ips {
+		if c := dialServer(ip); c != nil {
+			connections[id+1] = c
+		}
+	}
+	return connections
+}
+
+func dialServer(ip string) msg.MessengerClient {
+	ctx, _ := context.WithTimeout(context.Background(), time.Second)
+	conn, err := grpc.DialContext(ctx, ip, grpc.WithInsecure(), grpc.WithBlock())
+	if err != nil {
+		return nil
+	}
+
+	return msg.NewMessengerClient(conn)
 }
