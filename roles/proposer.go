@@ -61,6 +61,7 @@ func (p *Proposer) Run() {
 			proposerMsg := p.pendingMsgs[rec.GetSlotIndex()]
 
 			if _, ok := p.ledger[proposerMsg.GetSlotIndex()]; ok { //check whether slot already has committed value
+				p.ledger[proposerMsg.GetSlotIndex()] = proposerMsg.GetValue()
 				p.commitValue(proposerMsg)
 				continue
 			}
