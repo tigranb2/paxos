@@ -52,6 +52,7 @@ func (a *Acceptor) acceptMsg(rec *msg.Msg) (r *msg.Msg, err error) {
 		if acceptorSlotData.promised == rec.GetId() {
 			acceptorSlotData.accepted = rec.GetValue()
 			r = &msg.Msg{Type: msg.Type_Accept, SlotIndex: rec.GetSlotIndex(), Id: rec.GetId(), Value: rec.GetValue()}
+			a.broadcast(&msg.SlotValue{Type: msg.Type_Accept, SlotIndex: rec.GetSlotIndex(), Value: rec.GetValue()})
 		} else {
 			err = errors.New("promised different id")
 		}
