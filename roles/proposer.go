@@ -36,27 +36,14 @@ func InitProposer(ips []string, id int, ip string, quorum int) Proposer {
 func (p *Proposer) Run() {
 	go p.learner()
 	var slot int32
-	timer := time.After(5 * time.Second) //timer controls how often request are taken from queue
-	go serverInit(p)                     //start proposer server
+	go serverInit(p) //start proposer server
 	for {
 		select {
 		case clientReq := <-p.clientRequest:
 			heap.Push(&p.queue, clientReq.(msg.QueueRequest))
-		case <-timer:
-			if len(p.queue) != 0 {
-				req := heap.Pop(&p.queue).(msg.QueueRequest)
-				slot++
-				p.pendingMsgs[slot] = &msg.Msg{
-					Type:       msg.Type_Prepare,
-					SlotIndex:  slot,
-					Id:         time.Now().UnixNano(),
-					Value:      req.GetValue(),
-					Priority:   req.GetPriority(),
-					ProposerId: int32(p.id)}
-				p.quorumsData[slot] = &quorumData{}
-				go p.broadcast(slot) //broadcast new msg
+			if len(p.pendingMsgs) == 0 {
+				p.initSlot(&slot)
 			}
-			timer = time.After(5 * time.Second) //restart timer
 		case rec := <-p.quorumStatus:
 			slotQuorumData := p.quorumsData[rec.GetSlotIndex()]
 			proposerMsg := p.pendingMsgs[rec.GetSlotIndex()]
@@ -64,6 +51,7 @@ func (p *Proposer) Run() {
 			if _, ok := p.ledger[proposerMsg.GetSlotIndex()]; ok { //check whether slot already has committed value
 				p.ledger[proposerMsg.GetSlotIndex()] = proposerMsg.GetValue()
 				p.commitValue(proposerMsg)
+				p.initSlot(&slot)
 				continue
 			}
 
@@ -77,6 +65,7 @@ func (p *Proposer) Run() {
 			} else {
 				if slotQuorumData.accepts >= p.quorum { //propose phase passed
 					p.commitValue(proposerMsg)
+					p.initSlot(&slot)
 					continue
 				} else if slotQuorumData.proposeAttempt == 3 { //propose phase failed 3 times
 					slotQuorumData.proposeAttempt = 0
@@ -181,4 +170,20 @@ func (p *Proposer) commitValue(proposerMsg *msg.Msg) {
 	p.clientRequest <- &msg.SlotValue{SlotIndex: proposerMsg.GetSlotIndex(), Value: proposerMsg.GetValue()} //ACK
 	delete(p.pendingMsgs, proposerMsg.GetSlotIndex())
 	delete(p.quorumsData, proposerMsg.GetSlotIndex())
+}
+
+func (p *Proposer) initSlot(slot *int32) {
+	if len(p.queue) != 0 {
+		req := heap.Pop(&p.queue).(msg.QueueRequest)
+		*slot++
+		p.pendingMsgs[*slot] = &msg.Msg{
+			Type:       msg.Type_Prepare,
+			SlotIndex:  *slot,
+			Id:         time.Now().UnixNano(),
+			Value:      req.GetValue(),
+			Priority:   req.GetPriority(),
+			ProposerId: int32(p.id)}
+		p.quorumsData[*slot] = &quorumData{}
+		go p.broadcast(*slot) //broadcast new msg
+	}
 }
