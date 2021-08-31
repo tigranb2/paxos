@@ -6,7 +6,7 @@ acceptors:
   initPort: "8000"
   incrementPort: true # whether each node has a unique port
 proposers:
-  count: 2
+  count: 1
   initIP: "127.0.0.1" # start with this ip
   incrementIP: false # whether each node has a unique ip
   initPort: "9000"

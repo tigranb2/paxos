@@ -2,7 +2,6 @@ package roles
 
 import (
 	"context"
-	"fmt"
 	"google.golang.org/grpc"
 	"log"
 	"net"
@@ -20,7 +19,6 @@ func (s *server) MsgAcceptor(ctx context.Context, msg *msg.Msg) (*msg.Msg, error
 	if !ok {
 		log.Fatalf("destination server must be an acceptor")
 	}
-	fmt.Printf("Received message %+v\n", msg)
 	return a.acceptMsg(msg)
 }
 
