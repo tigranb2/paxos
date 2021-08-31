@@ -30,7 +30,7 @@ type quorumData struct {
 }
 
 func InitProposer(ips []string, id int, ip string, quorum int) Proposer {
-	return Proposer{clientRequest: make(chan interface{}), connections: createConnections(ips), id: id, ip: ip, ips: ips, pendingMsgs: make(map[int32]*msg.Msg), queue: make(queue.PriorityQueue, 0), quorum: quorum, quorumsData: make(map[int32]*quorumData), quorumStatus: make(chan *msg.Msg)}
+	return Proposer{clientRequest: make(chan interface{}), connections: createConnections(ips), id: id, ip: ip, ips: ips, learnerMsgs: make(chan *msg.SlotValue), ledger: make(map[int32]string), pendingMsgs: make(map[int32]*msg.Msg), queue: make(queue.PriorityQueue, 0), quorum: quorum, quorumsData: make(map[int32]*quorumData), quorumStatus: make(chan *msg.Msg)}
 }
 
 func (p *Proposer) Run() {
@@ -47,11 +47,12 @@ func (p *Proposer) Run() {
 				req := heap.Pop(&p.queue).(msg.QueueRequest)
 				slot++
 				p.pendingMsgs[slot] = &msg.Msg{
-					Type:      msg.Type_Prepare,
-					SlotIndex: slot,
-					Id:        time.Now().UnixNano(),
-					Value:     req.GetValue(),
-					Priority:  req.GetPriority()}
+					Type:       msg.Type_Prepare,
+					SlotIndex:  slot,
+					Id:         time.Now().UnixNano(),
+					Value:      req.GetValue(),
+					Priority:   req.GetPriority(),
+					ProposerId: int32(p.id)}
 				p.quorumsData[slot] = &quorumData{}
 				go p.broadcast(slot) //broadcast new msg
 			}
@@ -120,14 +121,13 @@ func (p *Proposer) learner() { //manages proposer's ledger
 func (p *Proposer) broadcast(slot int32) {
 	for acceptorId := range p.ips {
 		//dials server if connection does not already exist
-		if _, ok := p.connections[acceptorId]; !ok {
-			if c := dialServer(p.ips[acceptorId-1]); c != nil {
-				p.connections[acceptorId] = c //save connection to proposer's map
+		if _, ok := p.connections[acceptorId+1]; !ok {
+			if c := dialServer(p.ips[acceptorId]); c != nil {
+				p.connections[acceptorId+1] = c //save connection to proposer's map
 			} else {
 				continue
 			}
 		}
-
 		p.callAcceptor(acceptorId+1, p.pendingMsgs[slot])
 	}
 

@@ -20,7 +20,6 @@ func (s *server) MsgAcceptor(ctx context.Context, msg *msg.Msg) (*msg.Msg, error
 	if !ok {
 		log.Fatalf("destination server must be an acceptor")
 	}
-
 	fmt.Printf("Received message %+v\n", msg)
 	return a.acceptMsg(msg)
 }
@@ -32,11 +31,16 @@ func (s *server) MsgProposer(ctx context.Context, request *msg.QueueRequest) (*m
 	}
 
 	p.clientRequest <- *request
-	select {
-	case resp := <-p.clientRequest:
-		return resp.(*msg.SlotValue), nil
-	case <-ctx.Done():
-		return nil, ctx.Err()
+	for {
+		select {
+		case resp := <-p.clientRequest:
+			if _, ok := resp.(msg.QueueRequest); ok { //do not read other Client's requests
+				continue
+			}
+			return resp.(*msg.SlotValue), nil
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
 	}
 }
 
@@ -67,14 +71,14 @@ func serverInit(node interface{}) {
 	}
 }
 
-func (s *server) MsgLearner(ctx context.Context, msg *msg.SlotValue) (*msg.Empty, error) {
+func (s *server) MsgLearner(ctx context.Context, data *msg.SlotValue) (*msg.Empty, error) {
 	p, ok := s.node.(*Proposer)
 	if !ok {
 		log.Fatalf("destination server must be a proposer")
 	}
 
-	p.learnerMsgs <- msg
-	return nil, nil
+	p.learnerMsgs <- data
+	return &msg.Empty{}, nil
 }
 
 func createConnections(ips []string) map[int]msg.MessengerClient {

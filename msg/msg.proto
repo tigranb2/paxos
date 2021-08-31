@@ -26,6 +26,7 @@ message Msg{
   string value = 4;
   int64 previousId = 5; //id of previously accepted value
   int64 priority = 6; //stores priority msg had as QueueRequest
+  int32 proposerId = 7; //id of proposer that sent message
 }
 
 //Data type for values stored in queue

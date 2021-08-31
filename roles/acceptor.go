@@ -52,7 +52,7 @@ func (a *Acceptor) acceptMsg(rec *msg.Msg) (r *msg.Msg, err error) {
 		if acceptorSlotData.promised == rec.GetId() {
 			acceptorSlotData.accepted = rec.GetValue()
 			r = &msg.Msg{Type: msg.Type_Accept, SlotIndex: rec.GetSlotIndex(), Id: rec.GetId(), Value: rec.GetValue()}
-			a.broadcast(&msg.SlotValue{Type: msg.Type_Accept, SlotIndex: rec.GetSlotIndex(), Value: rec.GetValue()})
+			a.broadcast(&msg.SlotValue{Type: msg.Type_Accept, SlotIndex: rec.GetSlotIndex(), Value: rec.GetValue()}, int(rec.GetProposerId()))
 		} else {
 			err = errors.New("promised different id")
 		}
@@ -60,18 +60,20 @@ func (a *Acceptor) acceptMsg(rec *msg.Msg) (r *msg.Msg, err error) {
 	return r, err
 }
 
-func (a *Acceptor) broadcast(m *msg.SlotValue) {
-	for proposerId := range a.connections {
-		//dials server if connection does not already exist
-		if _, ok := a.connections[proposerId]; !ok {
-			if c := dialServer(a.ips[proposerId-1]); c != nil {
-				a.connections[proposerId] = c //save connection to acceptor's map
-			} else {
-				continue
+func (a *Acceptor) broadcast(m *msg.SlotValue, recProposer int) {
+	for proposerId := range a.ips {
+		if recProposer != proposerId+1 { //does not broadcast to proposer whose value was accepted
+			//dials server if connection does not already exist
+			if _, ok := a.connections[proposerId+1]; !ok {
+				if c := dialServer(a.ips[proposerId]); c != nil {
+					a.connections[proposerId+1] = c //save connection to acceptor's map
+				} else {
+					continue
+				}
 			}
-		}
 
-		a.callProposer(proposerId+1, m)
+			a.callProposer(proposerId+1, m)
+		}
 	}
 }
 
