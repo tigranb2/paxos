@@ -1,4 +1,4 @@
-timeout: 10 # time out in seconds for client
+timeout: 4 # time out in seconds for client
 acceptors:
   count: 3
   initIP: "127.0.0.1" # start with this ip

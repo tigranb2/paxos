@@ -79,7 +79,7 @@ func (a *Acceptor) broadcast(m *msg.SlotValue, recProposer int) {
 
 func (a *Acceptor) callProposer(proposerId int, m *msg.SlotValue) {
 	c := a.connections[proposerId]
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*100)
 	defer cancel()
 	//Send message to learner with 1 sec timeout
 	_, err := c.MsgLearner(ctx, m)
