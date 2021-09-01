@@ -4,6 +4,7 @@ import (
 	"container/heap"
 	"context"
 	"fmt"
+	"math/rand"
 	"paxos/msg"
 	"paxos/queue"
 	"time"
@@ -127,8 +128,8 @@ func (p *Proposer) broadcast() {
 		p.callAcceptor(acceptorId+1, p.pendingMsg)
 	}
 
-	//n := rand.Intn(10)
-	//time.Sleep(time.Millisecond * time.Duration(n)) //sleep to break proposer ties
+	n := rand.Intn(1)
+	time.Sleep(time.Millisecond * time.Duration(n)) //sleep to break proposer ties
 	p.quorumStatus <- p.pendingMsg
 }
 
