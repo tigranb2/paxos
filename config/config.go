@@ -9,6 +9,22 @@ import (
 type Config struct {
 	Timeout   int `yaml:"timeout"`
 	Acceptors struct {
+		Count int      `yaml:"count"`
+		Ip    []string `yaml:"ip"`
+		Port  []string `yaml:"port"`
+	}
+	Proposers struct {
+		Count int      `yaml:"count"`
+		Ip    []string `yaml:"ip"`
+		Port  []string `yaml:"port"`
+	}
+}
+
+/*
+// For testing
+type Config struct {
+	Timeout   int `yaml:"timeout"`
+	Acceptors struct {
 		Count         int    `yaml:"count"`
 		InitIP        string `yaml:"initIP"`
 		IncrementIP   bool   `yaml:"incrementIP"`
@@ -23,6 +39,7 @@ type Config struct {
 		IncrementPort bool   `yaml:"incrementPort"`
 	}
 }
+*/
 
 //ParseConfig parses config.yaml
 func ParseConfig() Config {

@@ -15,6 +15,7 @@ func main() {
 		fmt.Println("Please specify node type (p, a) and node id")
 		return
 	}
+
 	nodeId, err := strconv.Atoi(arguments[2])
 	if err != nil {
 		log.Fatalf("node id formatted incorrectly: %v", err)
@@ -22,6 +23,7 @@ func main() {
 
 	configData := config.ParseConfig()
 	quorum := configData.GetQuorum()
+
 	acceptorSockets := configData.ParseSockets("acceptor")
 	proposerSockets := configData.ParseSockets("proposer")
 

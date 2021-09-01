@@ -4,8 +4,6 @@ package config
 
 import (
 	"log"
-	"net"
-	"strconv"
 )
 
 //GetQuorum returns number of Acceptors needed for majority
@@ -13,8 +11,28 @@ func (configData *Config) GetQuorum() int {
 	return configData.Acceptors.Count/2 + 1
 }
 
-//ParseSockets parses socket info from config for either Acceptors or Proposers
 func (configData *Config) ParseSockets(nodeType string) (connections []string) {
+	node := configData.Acceptors
+	if nodeType == "proposer" {
+		node = configData.Proposers
+	}
+
+	if len(node.Ip) != len(node.Port) {
+		log.Fatalf("number of ips does not equal number of ports")
+	}
+
+	for i := 0; i < len(node.Ip); i++ {
+		connections = append(connections, node.Ip[i]+":"+node.Port[i])
+	}
+
+	return connections
+}
+
+/*
+//For testing
+
+//ParseSockets parses socket info from config for either Acceptors or Proposers
+func (configData *Config) ParseSocketsTesting(nodeType string) (connections []string) {
 	node := configData.Acceptors
 	if nodeType == "proposer" {
 		node = configData.Proposers
@@ -56,3 +74,5 @@ func nextIP(ip net.IP, inc uint) net.IP {
 	v0 := byte((v >> 24) & 0xFF)
 	return net.IPv4(v0, v1, v2, v3)
 }
+
+*/
