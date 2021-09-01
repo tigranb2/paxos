@@ -44,7 +44,7 @@ func (p *Proposer) Run() {
 	for {
 		select {
 		case <-timer:
-			fmt.Println(commits / 30)
+			fmt.Println(commits / 90)
 			return
 		case clientReq := <-p.clientRequest:
 			heap.Push(&p.queue, clientReq.(msg.QueueRequest))
