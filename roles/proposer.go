@@ -3,11 +3,16 @@ package roles
 import (
 	"container/heap"
 	"context"
+	"fmt"
 	"math/rand"
 	"paxos/msg"
 	"paxos/queue"
+	"sync"
 	"time"
 )
+
+var commits float64
+var start time.Time
 
 type Proposer struct {
 	clientRequest chan interface{}
@@ -36,14 +41,18 @@ func InitProposer(ips []string, id int, ip string, quorum int) Proposer {
 func (p *Proposer) Run() {
 	go p.learner()
 	var slot int32
-	timer := time.After(5 * time.Second) //timer controls how often request are taken from queue
-	go serverInit(p)                     //start proposer server
+	timer := time.After(time.Millisecond) //timer controls how often request are taken from queue
+	go serverInit(p)                      //start proposer server
 	for {
 		select {
 		case clientReq := <-p.clientRequest:
 			heap.Push(&p.queue, clientReq.(msg.QueueRequest))
 		case <-timer:
 			if len(p.queue) != 0 {
+				if slot == 0 {
+					start = time.Now()
+				}
+
 				req := heap.Pop(&p.queue).(msg.QueueRequest)
 				slot++
 				p.pendingMsgs[slot] = &msg.Msg{
@@ -56,7 +65,7 @@ func (p *Proposer) Run() {
 				p.quorumsData[slot] = &quorumData{}
 				go p.broadcast(slot) //broadcast new msg
 			}
-			timer = time.After(5 * time.Second) //restart timer
+			timer = time.After(time.Millisecond) //restart timer
 		case rec := <-p.quorumStatus:
 			slotQuorumData := p.quorumsData[rec.GetSlotIndex()]
 			proposerMsg := p.pendingMsgs[rec.GetSlotIndex()]
@@ -119,6 +128,7 @@ func (p *Proposer) learner() { //manages proposer's ledger
 }
 
 func (p *Proposer) broadcast(slot int32) {
+	var wg sync.WaitGroup
 	for acceptorId := range p.ips {
 		//dials server if connection does not already exist
 		if _, ok := p.connections[acceptorId+1]; !ok {
@@ -128,17 +138,20 @@ func (p *Proposer) broadcast(slot int32) {
 				continue
 			}
 		}
-		p.callAcceptor(acceptorId+1, p.pendingMsgs[slot])
+		wg.Add(1)
+		p.callAcceptor(&wg, acceptorId+1, p.pendingMsgs[slot])
 	}
 
-	n := rand.Intn(1000)
+	wg.Wait()
+	n := rand.Intn(1)
 	time.Sleep(time.Millisecond * time.Duration(n)) //sleep to break proposer ties
 	p.quorumStatus <- p.pendingMsgs[slot]
 }
 
-func (p *Proposer) callAcceptor(acceptorId int, data *msg.Msg) {
+func (p *Proposer) callAcceptor(wg *sync.WaitGroup, acceptorId int, data *msg.Msg) {
+	defer wg.Done()
 	c := p.connections[acceptorId]
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*100)
 	defer cancel()
 	//Send message to proposer with 1 sec timeout
 	rec, err := c.MsgAcceptor(ctx, data)
@@ -178,7 +191,13 @@ func (p *Proposer) handleResponse(rec *msg.Msg, err error) {
 }
 
 func (p *Proposer) commitValue(proposerMsg *msg.Msg) {
+	commits++
 	p.clientRequest <- &msg.SlotValue{SlotIndex: proposerMsg.GetSlotIndex(), Value: proposerMsg.GetValue()} //ACK
 	delete(p.pendingMsgs, proposerMsg.GetSlotIndex())
 	delete(p.quorumsData, proposerMsg.GetSlotIndex())
+
+	if commits == 10000 {
+		elapsed := time.Since(start).Seconds()
+		fmt.Println(commits / elapsed)
+	}
 }
