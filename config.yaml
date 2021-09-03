@@ -1,13 +1,17 @@
-timeout: 10 # time out in seconds for client
+timeout: 4 # time out in seconds for client
 acceptors:
   count: 3
-  initIP: "127.0.0.1" # start with this ip
-  incrementIP: false # whether each node has a unique ip
-  initPort: "8000"
-  incrementPort: true # whether each node has a unique port
+  ip:
+    - "127.0.0.1"
+    - "127.0.0.2"
+    - "127.0.0.3"
+  port:
+    - "8000"
+    - "8001"
+    - "8002"
 proposers:
-  count: 2
-  initIP: "127.0.0.1" # start with this ip
-  incrementIP: false # whether each node has a unique ip
-  initPort: "9000"
-  incrementPort: true # whether each node has a unique port
+  count: 1
+  ip:
+    - "127.0.0.1"
+  port:
+    - "9000"
