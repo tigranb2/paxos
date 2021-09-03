@@ -7,22 +7,24 @@ import (
 	"math/rand"
 	"paxos/msg"
 	"paxos/queue"
+	"sync"
 	"time"
 )
 
 type Proposer struct {
-	clientRequest chan interface{}
-	connections   map[int]msg.MessengerClient //store server connections for optimization
-	id            int
-	ip            string //socket for Proposer server
-	ips           []string
-	learnerMsgs   chan *msg.SlotValue //messages for learner go here
-	ledger        map[int32]string    //stores committed values for slots
-	pendingMsg    *msg.Msg
-	queue         queue.PriorityQueue
-	quorum        int
-	quorumsData   *quorumData //keeps track of responses for quorum
-	quorumStatus  chan *msg.Msg
+	clientRequest     chan interface{}
+	connections       map[int]msg.MessengerClient //store server connections for optimization
+	id                int
+	ip                string //socket for Proposer server
+	ips               []string
+	learnerMsgs       chan *msg.SlotValue //messages for learner go here
+	ledger            map[int32]string    //stores committed values for slots
+	pendingMsg        *msg.Msg
+	queue             queue.PriorityQueue
+	quorum            int
+	quorumsData       *quorumData //keeps track of responses for quorum
+	quorumStatus      chan *msg.Msg
+	routinesCompleted int //represents how many RPC to Proposer have terminated
 }
 
 type quorumData struct {
@@ -34,8 +36,8 @@ func InitProposer(ips []string, id int, ip string, quorum int) Proposer {
 	return Proposer{clientRequest: make(chan interface{}), connections: createConnections(ips), id: id, ip: ip, ips: ips, learnerMsgs: make(chan *msg.SlotValue), ledger: make(map[int32]string), queue: make(queue.PriorityQueue, 0), quorum: quorum, quorumStatus: make(chan *msg.Msg)}
 }
 
-var commits float32
-var timer <-chan time.Time
+var commits float64
+var start time.Time
 
 func (p *Proposer) Run() {
 	go p.learner()
@@ -43,14 +45,11 @@ func (p *Proposer) Run() {
 	go serverInit(p) //start proposer server
 	for {
 		select {
-		case <-timer:
-			fmt.Println(commits / 90)
-			return
 		case clientReq := <-p.clientRequest:
 			heap.Push(&p.queue, clientReq.(msg.QueueRequest))
 
-			if slot == 0 {
-				timer = time.After(90 * time.Second) // timer starts when first slot is init
+			if commits == 0 {
+				start = time.Now()
 			}
 			if p.pendingMsg == nil {
 				p.initSlot(&slot)
@@ -116,6 +115,7 @@ func (p *Proposer) learner() { //manages proposer's ledger
 }
 
 func (p *Proposer) broadcast() {
+	var wg sync.WaitGroup
 	for acceptorId := range p.ips {
 		//dials server if connection does not already exist
 		if _, ok := p.connections[acceptorId+1]; !ok {
@@ -125,15 +125,18 @@ func (p *Proposer) broadcast() {
 				continue
 			}
 		}
-		p.callAcceptor(acceptorId+1, p.pendingMsg)
+		wg.Add(1)
+		go p.callAcceptor(&wg, acceptorId+1, p.pendingMsg)
 	}
 
+	wg.Wait()
 	n := rand.Intn(1)
 	time.Sleep(time.Millisecond * time.Duration(n)) //sleep to break proposer ties
 	p.quorumStatus <- p.pendingMsg
 }
 
-func (p *Proposer) callAcceptor(acceptorId int, data *msg.Msg) {
+func (p *Proposer) callAcceptor(wg *sync.WaitGroup, acceptorId int, data *msg.Msg) {
+	defer wg.Done()
 	c := p.connections[acceptorId]
 	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*100)
 	defer cancel()
@@ -175,6 +178,11 @@ func (p *Proposer) commitValue(proposerMsg *msg.Msg) {
 	p.clientRequest <- &msg.SlotValue{SlotIndex: proposerMsg.GetSlotIndex(), Value: proposerMsg.GetValue()} //ACK
 	p.pendingMsg = nil
 	p.quorumsData = nil
+
+	if commits == 10000 {
+		elapsed := time.Since(start).Seconds()
+		fmt.Println(commits / elapsed)
+	}
 }
 
 func (p *Proposer) initSlot(slot *int32) {

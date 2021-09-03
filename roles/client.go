@@ -2,7 +2,6 @@ package roles
 
 import (
 	"context"
-	"fmt"
 	"paxos/msg"
 	"paxos/randstring"
 	"time"
@@ -28,7 +27,6 @@ func (c *Client) CloseLoopClient() {
 		select {
 		case resp := <-c.ack:
 			if resp != nil { //Proposer acknowledged request
-				fmt.Printf("%+v\n", resp)
 				continue
 			} else { //Proposer did not acknowledge request
 				//client moves on to proposer of adjacent id
