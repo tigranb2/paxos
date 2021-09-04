@@ -22,24 +22,43 @@ func (s *server) MsgAcceptor(ctx context.Context, msg *msg.Msg) (*msg.Msg, error
 	return a.acceptMsg(msg)
 }
 
-func (s *server) MsgProposer(ctx context.Context, request *msg.QueueRequest) (*msg.SlotValue, error) {
+func (s *server) MsgProposer(stream msg.Messenger_MsgProposerServer) error {
 	p, ok := s.node.(*Proposer)
 	if !ok {
 		log.Fatalf("destination server must be a proposer")
 	}
 
-	p.clientRequest <- *request
-	for {
-		select {
-		case resp := <-p.clientRequest:
-			if _, ok := resp.(msg.QueueRequest); ok { //do not read other Client's requests
-				continue
+	errStatus := make(chan error)
+
+	//receive messages
+	go func() {
+		for {
+			rec, err := stream.Recv() //reads client messages
+			if err != nil {
+				errStatus <- err
 			}
-			return resp.(*msg.SlotValue), nil
-		case <-ctx.Done():
-			return nil, ctx.Err()
+
+			p.clientRequest <- *rec
 		}
-	}
+	}()
+
+	//send messages
+	go func() {
+		for {
+			select {
+			case resp := <-p.clientRequest:
+				if _, ok := resp.(msg.QueueRequest); ok { //do not read other Client's requests
+					continue
+				}
+
+				if err := stream.Send(resp.(*msg.SlotValue)); err != nil { //send committed value to client
+					errStatus <- err
+				}
+			}
+		}
+	}()
+
+	return <-errStatus
 }
 
 func serverInit(node interface{}) {

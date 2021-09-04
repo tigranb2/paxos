@@ -5,7 +5,7 @@ option go_package = "./msg";
 
 service Messenger{
   rpc MsgAcceptor (Msg) returns (Msg) {}
-  rpc MsgProposer (QueueRequest) returns (SlotValue) {}
+  rpc MsgProposer (stream QueueRequest) returns (stream SlotValue) {}
   rpc MsgLearner (SlotValue) returns (Empty) {}
 }
 
