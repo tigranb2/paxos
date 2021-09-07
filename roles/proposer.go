@@ -12,6 +12,7 @@ import (
 )
 
 type Proposer struct {
+	bytesNeeded       int //number of bytes needed
 	clientRequest     chan interface{}
 	connections       map[int]msg.MessengerClient //store server connections for optimization
 	id                int
@@ -32,8 +33,8 @@ type quorumData struct {
 	proposeAttempt    int //stores number of times proposer has attempted propose phase
 }
 
-func InitProposer(ips []string, id int, ip string, quorum int) Proposer {
-	return Proposer{clientRequest: make(chan interface{}), connections: createConnections(ips), id: id, ip: ip, ips: ips, learnerMsgs: make(chan *msg.SlotValue), ledger: make(map[int32]string), queue: make(queue.PriorityQueue, 0), quorum: quorum, quorumStatus: make(chan *msg.Msg)}
+func InitProposer(bytesNeeded int, ips []string, id int, ip string, quorum int) Proposer {
+	return Proposer{bytesNeeded: bytesNeeded, clientRequest: make(chan interface{}), connections: createConnections(ips), id: id, ip: ip, ips: ips, learnerMsgs: make(chan *msg.SlotValue), ledger: make(map[int32]string), queue: make(queue.PriorityQueue, 0), quorum: quorum, quorumStatus: make(chan *msg.Msg)}
 }
 
 var commits float64
@@ -195,7 +196,8 @@ func (p *Proposer) initSlot(slot *int32) {
 			Id:         time.Now().UnixNano(),
 			Value:      req.GetValue(),
 			Priority:   req.GetPriority(),
-			ProposerId: int32(p.id)}
+			ProposerId: int32(p.id),
+			Size:       make([]int64, p.bytesNeeded)}
 		p.quorumsData = &quorumData{}
 		go p.broadcast() //broadcast new msg
 	}

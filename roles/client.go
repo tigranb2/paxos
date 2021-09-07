@@ -15,11 +15,10 @@ type Client struct {
 	proposerId       int
 	requests         chan *msg.QueueRequest
 	stopUnicast      chan bool
-	timeout          int //timeout time in seconds
 }
 
-func InitClient(id int, ips []string, timeout int) *Client {
-	return &Client{connections: createConnections(ips), connectionStatus: make(chan *msg.SlotValue), ips: ips, originalId: id, proposerId: id, requests: make(chan *msg.QueueRequest), stopUnicast: make(chan bool), timeout: timeout}
+func InitClient(id int, ips []string) *Client {
+	return &Client{connections: createConnections(ips), connectionStatus: make(chan *msg.SlotValue), ips: ips, originalId: id, proposerId: id, requests: make(chan *msg.QueueRequest), stopUnicast: make(chan bool)}
 }
 
 func (c *Client) CloseLoopClient() {
@@ -68,27 +67,21 @@ func (c *Client) unicast() {
 		c.connectionStatus <- nil
 	}
 
-	//receive messages
 	go func() {
 		for {
-			rec, err := stream.Recv()
+			select {
+			case req := <-c.requests:
+				if err := stream.Send(req); err != nil { //send message to Proposer
+					c.connectionStatus <- nil
+				}
+			}
+
+			rec, err := stream.Recv() //receive messages
 			if err != nil {
 				c.connectionStatus <- nil
 			}
 
 			c.connectionStatus <- rec
-		}
-	}()
-
-	//send messages
-	go func() {
-		for {
-			select {
-			case req := <-c.requests:
-				if err := stream.Send(req); err != nil {
-					c.connectionStatus <- nil
-				}
-			}
 		}
 	}()
 

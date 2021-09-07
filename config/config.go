@@ -7,7 +7,7 @@ import (
 )
 
 type Config struct {
-	Timeout   int `yaml:"timeout"`
+	MsgSize   int `yaml:"msgSize"`
 	Acceptors struct {
 		Count int      `yaml:"count"`
 		Ip    []string `yaml:"ip"`
@@ -23,7 +23,7 @@ type Config struct {
 /*
 // For testing
 type Config struct {
-	Timeout   int `yaml:"timeout"`
+	MsgSize   int `yaml:"msgSize"`
 	Acceptors struct {
 		Count         int    `yaml:"count"`
 		InitIP        string `yaml:"initIP"`

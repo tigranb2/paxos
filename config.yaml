@@ -1,4 +1,4 @@
-timeout: 4 # time out in seconds for client
+msgSize: 1 # size of message in KBs
 acceptors:
   count: 3
   ip:

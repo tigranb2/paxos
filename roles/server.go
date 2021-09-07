@@ -30,7 +30,6 @@ func (s *server) MsgProposer(stream msg.Messenger_MsgProposerServer) error {
 
 	errStatus := make(chan error)
 
-	//receive messages
 	go func() {
 		for {
 			rec, err := stream.Recv() //reads client messages
@@ -39,21 +38,10 @@ func (s *server) MsgProposer(stream msg.Messenger_MsgProposerServer) error {
 			}
 
 			p.clientRequest <- *rec
-		}
-	}()
 
-	//send messages
-	go func() {
-		for {
-			select {
-			case resp := <-p.clientRequest:
-				if _, ok := resp.(msg.QueueRequest); ok { //do not read other Client's requests
-					continue
-				}
-
-				if err := stream.Send(resp.(*msg.SlotValue)); err != nil { //send committed value to client
-					errStatus <- err
-				}
+			resp := <-p.clientRequest                                  //sends committed  to client
+			if err := stream.Send(resp.(*msg.SlotValue)); err != nil { //send committed value to client
+				errStatus <- err
 			}
 		}
 	}()
