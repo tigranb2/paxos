@@ -27,13 +27,13 @@ func main() {
 	acceptorSockets := configData.ParseSockets("acceptor")
 	proposerSockets := configData.ParseSockets("proposer")
 
-	bytesNeeded := (configData.MsgSize*1024)/8 - 6
+	int64Needed := (configData.MsgSize*1024)/8 - 6
 	switch arguments[1] {
 	case "a":
-		a := roles.InitAcceptor(bytesNeeded, acceptorSockets[nodeId-1], proposerSockets)
+		a := roles.InitAcceptor(int64Needed, acceptorSockets[nodeId-1], proposerSockets)
 		a.Run()
 	case "p":
-		p := roles.InitProposer(bytesNeeded, acceptorSockets, nodeId, proposerSockets[nodeId-1], quorum)
+		p := roles.InitProposer(int64Needed, acceptorSockets, nodeId, proposerSockets[nodeId-1], quorum)
 		p.Run()
 	case "c":
 		c := roles.InitClient(nodeId, proposerSockets)
