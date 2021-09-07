@@ -42,31 +42,29 @@ func InitProposer(int64Needed int, ips []string, id int, ip string, quorum int) 
 func (p *Proposer) Run() {
 	go p.learner()
 	var slot int32
-	timer := time.After(time.Millisecond) //timer controls how often request are taken from queue
-	go serverInit(p)                      //start proposer server
+	go serverInit(p) //start proposer server
 	for {
+		if len(p.queue) != 0 {
+			if slot == 0 {
+				start = time.Now()
+			}
+
+			req := heap.Pop(&p.queue).(msg.QueueRequest)
+			slot++
+			p.pendingMsgs[slot] = &msg.Msg{
+				Type:       msg.Type_Prepare,
+				SlotIndex:  slot,
+				Id:         time.Now().UnixNano(),
+				Value:      req.GetValue(),
+				Priority:   req.GetPriority(),
+				ProposerId: int32(p.id)}
+			p.quorumsData[slot] = &quorumData{}
+			go p.broadcast(slot) //broadcast new msg
+		}
+
 		select {
 		case clientReq := <-p.clientRequest:
 			heap.Push(&p.queue, clientReq.(msg.QueueRequest))
-		case <-timer:
-			if len(p.queue) != 0 {
-				if slot == 0 {
-					start = time.Now()
-				}
-
-				req := heap.Pop(&p.queue).(msg.QueueRequest)
-				slot++
-				p.pendingMsgs[slot] = &msg.Msg{
-					Type:       msg.Type_Prepare,
-					SlotIndex:  slot,
-					Id:         time.Now().UnixNano(),
-					Value:      req.GetValue(),
-					Priority:   req.GetPriority(),
-					ProposerId: int32(p.id)}
-				p.quorumsData[slot] = &quorumData{}
-				go p.broadcast(slot) //broadcast new msg
-			}
-			timer = time.After(time.Millisecond) //restart timer
 		case rec := <-p.quorumStatus:
 			slotQuorumData := p.quorumsData[rec.GetSlotIndex()]
 			proposerMsg := p.pendingMsgs[rec.GetSlotIndex()]
