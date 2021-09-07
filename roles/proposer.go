@@ -18,6 +18,7 @@ type Proposer struct {
 	clientRequest chan interface{}
 	connections   map[int]msg.MessengerClient //store server connections for optimization
 	id            int
+	int64Needed   int    //number of int64s needed
 	ip            string //socket for Proposer server
 	ips           []string
 	learnerMsgs   chan *msg.SlotValue //messages for learner go here
@@ -34,8 +35,8 @@ type quorumData struct {
 	proposeAttempt    int //stores number of times proposer has attempted propose phase
 }
 
-func InitProposer(ips []string, id int, ip string, quorum int) Proposer {
-	return Proposer{clientRequest: make(chan interface{}), connections: createConnections(ips), id: id, ip: ip, ips: ips, learnerMsgs: make(chan *msg.SlotValue), ledger: make(map[int32]string), pendingMsgs: make(map[int32]*msg.Msg), queue: make(queue.PriorityQueue, 0), quorum: quorum, quorumsData: make(map[int32]*quorumData), quorumStatus: make(chan *msg.Msg)}
+func InitProposer(int64Needed int, ips []string, id int, ip string, quorum int) Proposer {
+	return Proposer{clientRequest: make(chan interface{}), connections: createConnections(ips), id: id, int64Needed: int64Needed, ip: ip, ips: ips, learnerMsgs: make(chan *msg.SlotValue), ledger: make(map[int32]string), pendingMsgs: make(map[int32]*msg.Msg), queue: make(queue.PriorityQueue, 0), quorum: quorum, quorumsData: make(map[int32]*quorumData), quorumStatus: make(chan *msg.Msg)}
 }
 
 func (p *Proposer) Run() {

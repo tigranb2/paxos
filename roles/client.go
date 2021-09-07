@@ -2,35 +2,37 @@ package roles
 
 import (
 	"context"
-	"fmt"
 	"paxos/msg"
 	"paxos/randstring"
 	"time"
 )
 
 type Client struct {
-	ack         chan *msg.SlotValue
-	connections map[int]msg.MessengerClient //connections to proposers
-	ips         []string
-	originalId  int
-	proposerId  int
-	timeout     int //timeout time in seconds
+	connections      map[int]msg.MessengerClient //connections to proposers
+	connectionStatus chan *msg.SlotValue
+	ips              []string
+	originalId       int
+	proposerId       int
+	requests         chan *msg.QueueRequest
+	stopUnicast      chan bool
 }
 
-func InitClient(id int, ips []string, timeout int) *Client {
-	return &Client{ack: make(chan *msg.SlotValue), connections: createConnections(ips), ips: ips, originalId: id, proposerId: id, timeout: timeout}
+func InitClient(id int, ips []string) *Client {
+	return &Client{connections: createConnections(ips), connectionStatus: make(chan *msg.SlotValue), ips: ips, originalId: id, proposerId: id, requests: make(chan *msg.QueueRequest), stopUnicast: make(chan bool)}
 }
 
 func (c *Client) CloseLoopClient() {
+	go c.unicast()
 	for {
 		req := &msg.QueueRequest{Priority: time.Now().UnixNano(), Value: randstring.FixedLengthString(10)}
-		go c.unicast(req)
+		c.requests <- req
 		select {
-		case resp := <-c.ack:
-			if resp != nil { //Proposer acknowledged request
-				fmt.Printf("%+v\n", resp)
+		case resp := <-c.connectionStatus:
+			if resp != nil { //Proposer responded to request with committed value
 				continue
-			} else { //Proposer did not acknowledge request
+			} else { //Connections with proposer failed
+				c.stopUnicast <- true
+
 				//client moves on to proposer of adjacent id
 				if c.proposerId < len(c.connections) {
 					c.proposerId++
@@ -41,29 +43,47 @@ func (c *Client) CloseLoopClient() {
 				if c.proposerId == c.originalId { //client terminates once it has timed out from all proposers
 					return
 				}
+
+				go c.unicast()
 			}
 		}
 	}
 
 }
 
-func (client *Client) unicast(req *msg.QueueRequest) {
+func (c *Client) unicast() {
 	//dials server if connection does not already exist
-	if _, ok := client.connections[client.proposerId]; !ok {
-		if c := dialServer(client.ips[client.proposerId-1]); c != nil {
-			client.connections[client.proposerId] = c //save connection to proposer's map
+	if _, ok := c.connections[c.proposerId]; !ok {
+		if conn := dialServer(c.ips[c.proposerId-1]); conn != nil {
+			c.connections[c.proposerId] = conn //save connection to proposer's map
 		} else {
-			return
+			c.connectionStatus <- nil
 		}
 	}
-	conn := client.connections[client.proposerId]
+	conn := c.connections[c.proposerId]
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(client.timeout)*time.Second)
-	defer cancel()
-	resp, err := conn.MsgProposer(ctx, req)
-	if err == nil {
-		client.ack <- resp
-	} else {
-		client.ack <- nil
+	stream, err := conn.MsgProposer(context.Background())
+	if err != nil {
+		c.connectionStatus <- nil
 	}
+
+	go func() {
+		for {
+			select {
+			case req := <-c.requests:
+				if err := stream.Send(req); err != nil { //send message to Proposer
+					c.connectionStatus <- nil
+				}
+			}
+
+			rec, err := stream.Recv() //receive messages
+			if err != nil {
+				c.connectionStatus <- nil
+			}
+
+			c.connectionStatus <- rec
+		}
+	}()
+
+	<-c.stopUnicast
 }

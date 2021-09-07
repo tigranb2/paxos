@@ -5,7 +5,7 @@ option go_package = "./msg";
 
 service Messenger{
   rpc MsgAcceptor (Msg) returns (Msg) {}
-  rpc MsgProposer (QueueRequest) returns (SlotValue) {}
+  rpc MsgProposer (stream QueueRequest) returns (stream SlotValue) {}
   rpc MsgLearner (SlotValue) returns (Empty) {}
 }
 
@@ -19,7 +19,7 @@ enum Type{
 }
 
 //Data type used for inter-node communication
-message Msg{
+message Msg{ //size of 48bytes
   Type type = 1;
   int32 slotIndex = 2;
   int64 id = 3;
@@ -27,6 +27,7 @@ message Msg{
   int64 previousId = 5; //id of previously accepted value
   int64 priority = 6; //stores priority msg had as QueueRequest
   int32 proposerId = 7; //id of proposer that sent message
+  repeated int64 size = 8; //size of message
 }
 
 //Data type for values stored in queue

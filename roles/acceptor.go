@@ -10,6 +10,7 @@ import (
 type Acceptor struct {
 	acceptorData map[int32]*consensusData
 	connections  map[int]msg.MessengerClient //connections to proposers
+	int64Needed  int                         //number of int64s needed
 	ip           string                      //socket for Acceptor server
 	ips          []string                    //sockets of all Proposers
 }
@@ -19,8 +20,8 @@ type consensusData struct {
 	accepted string
 }
 
-func InitAcceptor(ip string, ips []string) Acceptor {
-	return Acceptor{acceptorData: make(map[int32]*consensusData), connections: createConnections(ips), ip: ip, ips: ips}
+func InitAcceptor(int64Needed int, ip string, ips []string) Acceptor {
+	return Acceptor{acceptorData: make(map[int32]*consensusData), connections: createConnections(ips), int64Needed: int64Needed, ip: ip, ips: ips}
 }
 
 func (a *Acceptor) Run() {
@@ -39,10 +40,10 @@ func (a *Acceptor) acceptMsg(rec *msg.Msg) (r *msg.Msg, err error) {
 		if rec.GetId() > acceptorSlotData.promised {
 			if acceptorSlotData.accepted != "" { //case where node has accepted prior value
 				acceptorSlotData.promised = rec.GetId()
-				r = &msg.Msg{Type: msg.Type_Promise, SlotIndex: rec.GetSlotIndex(), Id: rec.GetId(), Value: acceptorSlotData.accepted, PreviousId: acceptorSlotData.promised}
+				r = &msg.Msg{Type: msg.Type_Promise, SlotIndex: rec.GetSlotIndex(), Id: rec.GetId(), Value: acceptorSlotData.accepted, PreviousId: acceptorSlotData.promised, Size: make([]int64, a.int64Needed)}
 			} else {
 				acceptorSlotData.promised = rec.GetId()
-				r = &msg.Msg{Type: msg.Type_Promise, SlotIndex: rec.GetSlotIndex(), Id: rec.GetId()}
+				r = &msg.Msg{Type: msg.Type_Promise, SlotIndex: rec.GetSlotIndex(), Id: rec.GetId(), Size: make([]int64, a.int64Needed)}
 			}
 		} else {
 			err = errors.New("promised higher id")
@@ -51,7 +52,7 @@ func (a *Acceptor) acceptMsg(rec *msg.Msg) (r *msg.Msg, err error) {
 		//accept proposed value
 		if acceptorSlotData.promised == rec.GetId() {
 			acceptorSlotData.accepted = rec.GetValue()
-			r = &msg.Msg{Type: msg.Type_Accept, SlotIndex: rec.GetSlotIndex(), Id: rec.GetId(), Value: rec.GetValue()}
+			r = &msg.Msg{Type: msg.Type_Accept, SlotIndex: rec.GetSlotIndex(), Id: rec.GetId(), Value: rec.GetValue(), Size: make([]int64, a.int64Needed)}
 			a.broadcast(&msg.SlotValue{Type: msg.Type_Accept, SlotIndex: rec.GetSlotIndex(), Value: rec.GetValue()}, int(rec.GetProposerId()))
 		} else {
 			err = errors.New("promised different id")
