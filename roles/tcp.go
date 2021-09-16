@@ -2,6 +2,8 @@ package roles
 
 import (
 	"bufio"
+	"encoding/binary"
+	"fmt"
 	"io"
 	"log"
 	"net"
@@ -74,7 +76,8 @@ func (t *TCP) sendMsgs() {
 				log.Fatalln("error occurred marshalling request: ", err)
 			}
 
-			if _, err = t.writer.Write(data); err != nil {
+			//write data
+			if err = bufWrite(t.writer, data); err != nil {
 				log.Fatalln("error writing data: ", err)
 			}
 
@@ -88,22 +91,22 @@ func (t *TCP) sendMsgs() {
 func (t *TCP) receiveMsgs() {
 	readBuf := make([]byte, 4096*100)
 	for {
-		_, err := io.ReadFull(t.reader, readBuf)
+		n, err := bufRead(t.reader, readBuf)
 		if err != nil {
 			log.Fatalln("error reading from reader: ", err)
 		}
 
 		switch t.connType {
 		case msg.ToAcceptor:
-			var rec *msg.Msg
-			if err := rec.Unmarshal(readBuf); err == nil {
+			var rec = &msg.Msg{}
+			if err = rec.Unmarshal(readBuf[:n]); err == nil {
 				t.receiveChan <- rec
 			} else {
 				log.Fatalln("error unmarshalling message: ", err)
 			}
 		case msg.ToProposer:
-			var rec *msg.SlotValue
-			if err := rec.Unmarshal(readBuf); err == nil {
+			var rec = &msg.SlotValue{}
+			if err = rec.Unmarshal(readBuf[:n]); err == nil {
 				t.receiveChan <- rec
 			} else {
 				log.Fatalln("error unmarshalling message: ", err)
@@ -121,36 +124,39 @@ func (p *Proposer) proposerServer() {
 		if err != nil {
 			log.Fatalln("error accepting connection: ", err)
 		}
-
 		clientId++
-		p.clientWriteChans[clientId] = make(chan *msg.SlotValue)
 
 		go func() {
 			reader, writer := initReaderWriter(conn)
 			readBuf := make([]byte, 4096*100)
 
+			writeChan := make(chan *msg.SlotValue)
+			p.clientWriteChans[clientId] = writeChan
+
 			for {
-				var rec *msg.QueueRequest
+				var rec = &msg.QueueRequest{}
 				//read QueueRequest from client
-				_, errF := io.ReadFull(reader, readBuf)
+				n, errF := bufRead(reader, readBuf)
 				if errF != nil {
 					log.Fatalln("error reading from reader: ", errF)
 				}
 
-				if errF = rec.Unmarshal(readBuf); errF == nil {
-					p.clientRequest <- rec
+				if errF = rec.Unmarshal(readBuf[:n]); errF != nil {
+					log.Fatalln("error unmarshalling value: ", errF)
 				}
+				rec.FromClient = clientId //save client id to request
+				p.clientRequest <- rec
 
 				//send SlotValue to client
-				resp := <-p.clientWriteChans[clientId]
-				data, errF := resp.Marshal()
+				resp := <-writeChan
 
-				if _, err = writer.Write(data); err != nil {
-					log.Fatalln("error writing data: ", err)
+				data, errF := resp.Marshal()
+				if errF = bufWrite(writer, data); errF != nil {
+					log.Fatalln("error writing data: ", errF)
 				}
 
-				if err = writer.Flush(); err != nil {
-					log.Fatalln("error flushing writer: ", err)
+				if errF = writer.Flush(); errF != nil {
+					log.Fatalln("error flushing writer: ", errF)
 				}
 			}
 		}()
@@ -159,11 +165,65 @@ func (p *Proposer) proposerServer() {
 
 //acceptorServer receives messages from proposers
 func (a *Acceptor) acceptorServer() {
+	listener := initListener(a.ip)
+	for {
+		conn, err := listener.Accept()
+		if err != nil {
+			log.Fatalln("error accepting connection: ", err)
+		}
 
+		go func() {
+			reader, writer := initReaderWriter(conn)
+			readBuf := make([]byte, 4096*100)
+
+			/*
+				//reads proposerId, used to identify channel for accessing proposer writer
+				//not needed for current design
+
+				writeChan := make(chan *msg.Msg)
+				var idMsg = &msg.Msg{} //msg from Proposer that will contain its ID
+
+				n, errF := bufRead(reader, readBuf)
+				if errF != nil {
+					log.Fatalln("error reading from reader: ", errF)
+				}
+				if errF = idMsg.Unmarshal(readBuf[:n]); errF != nil {
+					log.Fatalln("error unmarshalling value: ", errF)
+				}
+				a.proposerWriteChans[idMsg.GetProposerId()] = writeChan
+			*/
+
+			for {
+				var rec = &msg.Msg{}
+				//read msg from proposer
+				n, errF := bufRead(reader, readBuf)
+				if errF != nil {
+					log.Fatalln("error reading from reader: ", errF)
+				}
+
+				if errF = rec.Unmarshal(readBuf[:n]); errF != nil {
+					log.Fatalln("error unmarshalling value: ", errF)
+				}
+
+				resp := a.acceptMsg(rec)
+
+				//write response to proposer
+				data, errF := resp.Marshal()
+				if errF = bufWrite(writer, data); errF != nil {
+					log.Fatalln("error writing data: ", errF)
+				}
+
+				if errF = writer.Flush(); errF != nil {
+					log.Fatalln("error flushing writer: ", errF)
+				}
+			}
+		}()
+	}
 }
 
 //learnerServer receives messages from acceptors
 func (p *Proposer) learnerServer() {
+
 }
 
 func initListener(ip string) net.Listener {
@@ -194,4 +254,37 @@ func initReaderWriter(conn net.Conn) (*bufio.Reader, *bufio.Writer) {
 	}
 
 	return bufio.NewReaderSize(conn, 4096000), bufio.NewWriterSize(conn, 4096000)
+}
+
+//bufWrite from https://github.com/haochenpan/rabia
+func bufWrite(writer *bufio.Writer, data []byte) error {
+	lenBuf := make([]byte, 4)
+	binary.LittleEndian.PutUint32(lenBuf, uint32(len(data)))
+	n1, err := writer.Write(lenBuf)
+	if n1 != 4 {
+		panic(fmt.Sprint("should not happen", err))
+	}
+	if err != nil {
+		return err
+	}
+	n2, err := writer.Write(data)
+	if n2 != len(data) {
+		panic(fmt.Sprint("should not happen", err))
+	}
+	return err
+}
+
+//bufRead from https://github.com/haochenpan/rabia
+func bufRead(reader *bufio.Reader, data []byte) (int, error) {
+	lenBuf := make([]byte, 4)
+	n1, err := io.ReadFull(reader, lenBuf)
+	if n1 != 4 || err != nil {
+		return n1, err
+	}
+	n2 := binary.LittleEndian.Uint32(lenBuf)
+	n3, err := io.ReadFull(reader, data[:n2])
+	if int(n2) != n3 {
+		panic(fmt.Sprint("should not happen", err, int(n2), n3))
+	}
+	return n3, nil
 }

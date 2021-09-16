@@ -1,18 +1,14 @@
 package roles
 
 import (
-	"context"
-	"errors"
 	"paxos/msg"
-	"time"
 )
 
 type Acceptor struct {
 	acceptorData map[int32]*consensusData
-	connections  map[int]msg.MessengerClient //connections to proposers
-	int64Needed  int                         //number of int64s needed
-	ip           string                      //socket for Acceptor server
-	ips          []string                    //sockets of all Proposers
+	int64Needed  int      //number of int64s needed
+	ip           string   //socket for Acceptor server
+	ips          []string //sockets of all Proposers
 }
 
 type consensusData struct {
@@ -21,46 +17,49 @@ type consensusData struct {
 }
 
 func InitAcceptor(int64Needed int, ip string, ips []string) Acceptor {
-	return Acceptor{acceptorData: make(map[int32]*consensusData), connections: createConnections(ips), int64Needed: int64Needed, ip: ip, ips: ips}
+	return Acceptor{acceptorData: make(map[int32]*consensusData), int64Needed: int64Needed, ip: ip, ips: ips}
 }
 
 func (a *Acceptor) Run() {
-	serverInit(a)
+	a.acceptorServer()
 }
 
-func (a *Acceptor) acceptMsg(rec *msg.Msg) (r *msg.Msg, err error) {
+func (a *Acceptor) acceptMsg(rec *msg.Msg) (r *msg.Msg) {
 	if _, ok := a.acceptorData[rec.GetSlotIndex()]; !ok {
 		a.acceptorData[rec.GetSlotIndex()] = &consensusData{}
 	}
 
 	acceptorSlotData := a.acceptorData[rec.GetSlotIndex()]
 	switch rec.GetType() {
-	case msg.Type_Prepare:
+	case msg.Prepare:
 		//promise to ignore ids lower than received id
 		if rec.GetId() > acceptorSlotData.promised {
 			if acceptorSlotData.accepted != "" { //case where node has accepted prior value
 				acceptorSlotData.promised = rec.GetId()
-				r = &msg.Msg{Type: msg.Type_Promise, SlotIndex: rec.GetSlotIndex(), Id: rec.GetId(), Value: acceptorSlotData.accepted, PreviousId: acceptorSlotData.promised, Size: make([]int64, a.int64Needed)}
+				r = &msg.Msg{Type: msg.Promise, SlotIndex: rec.GetSlotIndex(), Id: rec.GetId(), Value: acceptorSlotData.accepted, PreviousId: acceptorSlotData.promised, Size_: make([]int64, a.int64Needed)}
 			} else {
 				acceptorSlotData.promised = rec.GetId()
-				r = &msg.Msg{Type: msg.Type_Promise, SlotIndex: rec.GetSlotIndex(), Id: rec.GetId(), Size: make([]int64, a.int64Needed)}
+				r = &msg.Msg{Type: msg.Promise, SlotIndex: rec.GetSlotIndex(), Id: rec.GetId(), Size_: make([]int64, a.int64Needed)}
 			}
 		} else {
-			err = errors.New("promised higher id")
+			r = nil //promised higher id
 		}
-	case msg.Type_Propose:
+	case msg.Propose:
 		//accept proposed value
 		if acceptorSlotData.promised == rec.GetId() {
 			acceptorSlotData.accepted = rec.GetValue()
-			r = &msg.Msg{Type: msg.Type_Accept, SlotIndex: rec.GetSlotIndex(), Id: rec.GetId(), Value: rec.GetValue(), Size: make([]int64, a.int64Needed)}
-			a.broadcast(&msg.SlotValue{Type: msg.Type_Accept, SlotIndex: rec.GetSlotIndex(), Value: rec.GetValue()}, int(rec.GetProposerId()))
+			r = &msg.Msg{Type: msg.Accept, SlotIndex: rec.GetSlotIndex(), Id: rec.GetId(), Value: rec.GetValue(), Size_: make([]int64, a.int64Needed)}
+
+			//send to Learners!
+			//a.broadcast(&msg.SlotValue{Type: msg.Accept, SlotIndex: rec.GetSlotIndex(), Value: rec.GetValue()}, int(rec.GetProposerId()))
 		} else {
-			err = errors.New("promised different id")
+			r = nil //promised different id
 		}
 	}
-	return r, err
+	return r
 }
 
+/*
 func (a *Acceptor) broadcast(m *msg.SlotValue, recProposer int) {
 	for proposerId := range a.ips {
 		if recProposer != proposerId+1 { //does not broadcast to proposer whose value was accepted
@@ -88,3 +87,4 @@ func (a *Acceptor) callProposer(proposerId int, m *msg.SlotValue) {
 		return
 	}
 }
+*/

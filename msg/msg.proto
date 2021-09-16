@@ -1,12 +1,14 @@
 syntax = "proto3";
 
+//protoc -I=. -I=$GOPATH/src -I=$GOPATH/src/github.com/gogo/protobuf/protobuf --gogoslick_out=. msg/msg.proto
+
 package msg;
 option go_package = "./msg";
 
-service Messenger{
-  rpc MsgAcceptor (Msg) returns (Msg) {}
-  rpc MsgProposer (stream QueueRequest) returns (stream SlotValue) {}
-  rpc MsgLearner (SlotValue) returns (Empty) {}
+enum ConnType{
+  ToAcceptor = 0;
+  ToProposer = 1;
+  ToLearner = 2;
 }
 
 //Types of messages nodes can send to one another
@@ -27,13 +29,15 @@ message Msg{ //size of 48bytes
   int64 previousId = 5; //id of previously accepted value
   int64 priority = 6; //stores priority msg had as QueueRequest
   int32 proposerId = 7; //id of proposer that sent message
-  repeated int64 size = 8; //size of message
+  int32 fromClient = 8; //id of client that sent request
+  repeated int64 size = 9; //size of message
 }
 
 //Data type for values stored in queue
 message QueueRequest {
   int64 priority = 1;
   string value = 2;
+  int32 fromClient = 3; //id of client that sent request
 }
 
 //Type used for sending information about a slot's value
@@ -42,5 +46,3 @@ message SlotValue {
   int32 slotIndex = 2;
   string value = 3;
 }
-
-message Empty {}
