@@ -21,7 +21,7 @@ enum Type{
 }
 
 //Data type used for inter-node communication
-message Msg{ //size of 48bytes
+message Msg{ //size of 52bytes
   Type type = 1;
   int32 slotIndex = 2;
   int64 id = 3;
@@ -30,7 +30,7 @@ message Msg{ //size of 48bytes
   int64 priority = 6; //stores priority msg had as QueueRequest
   int32 proposerId = 7; //id of proposer that sent message
   int32 fromClient = 8; //id of client that sent request
-  repeated int64 size = 9; //size of message
+  repeated int32 size = 9; //size of message
 }
 
 //Data type for values stored in queue

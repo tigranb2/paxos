@@ -1,4 +1,4 @@
-msgSize: 1 # size of message in KBs
+msgSize: 16 # size of message in bytes
 bufferSize: 4096000
 acceptors:
   count: 3

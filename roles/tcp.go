@@ -58,18 +58,6 @@ func (t *TCP) sendMsgs() {
 				} else {
 					log.Fatalln("error converting message to proper type")
 				}
-			case msg.ToProposer:
-				if m, ok := req.(*msg.QueueRequest); ok {
-					data, err = m.Marshal()
-				} else {
-					log.Fatalln("error converting message to proper type")
-				}
-			case msg.ToLearner:
-				if m, ok := req.(*msg.SlotValue); ok {
-					data, err = m.Marshal()
-				} else {
-					log.Fatalln("error converting message to proper type")
-				}
 			}
 
 			if err != nil {
@@ -104,62 +92,7 @@ func (t *TCP) receiveMsgs() {
 			} else {
 				log.Fatalln("error unmarshalling message: ", err)
 			}
-		case msg.ToProposer:
-			var rec = &msg.SlotValue{}
-			if err = rec.Unmarshal(readBuf[:n]); err == nil {
-				t.receiveChan <- rec
-			} else {
-				log.Fatalln("error unmarshalling message: ", err)
-			}
 		}
-	}
-}
-
-//proposerServer receives messages from clients
-func (p *Proposer) proposerServer() {
-	listener := initListener(p.ip)
-	var clientId int32
-	for {
-		conn, err := listener.Accept()
-		if err != nil {
-			log.Fatalln("error accepting connection: ", err)
-		}
-		clientId++
-
-		go func() {
-			reader, writer := initReaderWriter(conn)
-			readBuf := make([]byte, 4096*100)
-
-			writeChan := make(chan *msg.SlotValue)
-			p.clientWriteChans[clientId] = writeChan
-
-			for {
-				var rec = &msg.QueueRequest{}
-				//read QueueRequest from client
-				n, errF := bufRead(reader, readBuf)
-				if errF != nil {
-					log.Fatalln("error reading from reader: ", errF)
-				}
-
-				if errF = rec.Unmarshal(readBuf[:n]); errF != nil {
-					log.Fatalln("error unmarshalling value: ", errF)
-				}
-				rec.FromClient = clientId //save client id to request
-				p.clientRequest <- rec
-
-				//send SlotValue to client
-				resp := <-writeChan
-
-				data, errF := resp.Marshal()
-				if errF = bufWrite(writer, data); errF != nil {
-					log.Fatalln("error writing data: ", errF)
-				}
-
-				if errF = writer.Flush(); errF != nil {
-					log.Fatalln("error flushing writer: ", errF)
-				}
-			}
-		}()
 	}
 }
 
@@ -176,23 +109,6 @@ func (a *Acceptor) acceptorServer() {
 			reader, writer := initReaderWriter(conn)
 			readBuf := make([]byte, 4096*100)
 
-			/*
-				//reads proposerId, used to identify channel for accessing proposer writer
-				//not needed for current design
-
-				writeChan := make(chan *msg.Msg)
-				var idMsg = &msg.Msg{} //msg from Proposer that will contain its ID
-
-				n, errF := bufRead(reader, readBuf)
-				if errF != nil {
-					log.Fatalln("error reading from reader: ", errF)
-				}
-				if errF = idMsg.Unmarshal(readBuf[:n]); errF != nil {
-					log.Fatalln("error unmarshalling value: ", errF)
-				}
-				a.proposerWriteChans[idMsg.GetProposerId()] = writeChan
-			*/
-
 			for {
 				var rec = &msg.Msg{}
 				//read msg from proposer
@@ -205,7 +121,7 @@ func (a *Acceptor) acceptorServer() {
 					log.Fatalln("error unmarshalling value: ", errF)
 				}
 
-				resp := a.acceptMsg(rec)
+				resp := rec
 
 				//write response to proposer
 				data, errF := resp.Marshal()
@@ -219,11 +135,6 @@ func (a *Acceptor) acceptorServer() {
 			}
 		}()
 	}
-}
-
-//learnerServer receives messages from acceptors
-func (p *Proposer) learnerServer() {
-
 }
 
 func initListener(ip string) net.Listener {

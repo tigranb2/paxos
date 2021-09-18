@@ -25,17 +25,27 @@ func main() {
 	acceptorSockets := configData.ParseSockets("acceptor")
 	proposerSockets := configData.ParseSockets("proposer")
 
-	bytesNeeded := (configData.MsgSize*1024)/8 - 6
+	bytesNeeded := determineInt32Needed(configData.MsgSize)
 	switch arguments[1] {
 	case "a":
-		a := roles.InitAcceptor(bytesNeeded, acceptorSockets[nodeId-1], proposerSockets)
+		a := roles.InitAcceptor(acceptorSockets[nodeId-1])
 		a.Run()
 	case "p":
 		p := roles.InitProposer(bytesNeeded, acceptorSockets, nodeId, proposerSockets[nodeId-1], quorum)
 		p.Run()
-	case "c":
-		c := roles.InitClient(nodeId, proposerSockets)
-		c.CloseLoopClient()
 	}
 
+}
+
+func determineInt32Needed(msgSize int) int {
+	msgSize -= 52 //other fields of msg take up 52 bytes of space
+
+	if r := msgSize % 4; r != 0 { //change msgSize into a multiple of 4 (floor function)
+		msgSize -= r
+	}
+
+	if msgSize <= 13 {
+		return 0
+	}
+	return msgSize / 4
 }
