@@ -3,7 +3,6 @@ package roles
 import (
 	"fmt"
 	"paxos/msg"
-	"sync"
 	"time"
 )
 
@@ -11,7 +10,6 @@ var commits float64
 var start time.Time
 
 type Proposer struct {
-	commit          chan int32
 	connections     []*TCP //store connections to acceptors
 	id              int
 	int32Needed     int    //number of int32s needed for designated msg size (each is 4 bytes)
@@ -19,7 +17,7 @@ type Proposer struct {
 	pendingMsgs     map[int32]*msg.Msg
 	quorum          int
 	receiveResponse chan interface{}
-	wgs             map[int32]*sync.WaitGroup //WaitGroup for each slot broadcasting messages
+	slotResp        map[int32]int
 }
 
 func InitProposer(int32Needed int, ips []string, id int, ip string, quorum int) Proposer { //connections: createConnections(ips),
@@ -33,11 +31,11 @@ func InitProposer(int32Needed int, ips []string, id int, ip string, quorum int) 
 		go t.receiveMsgs()
 	}
 
-	return Proposer{commit: make(chan int32), connections: connections, id: id, int32Needed: int32Needed, ip: ip, pendingMsgs: make(map[int32]*msg.Msg), quorum: quorum, receiveResponse: receiveResponse, wgs: make(map[int32]*sync.WaitGroup)}
+	return Proposer{connections: connections, id: id, int32Needed: int32Needed, ip: ip, pendingMsgs: make(map[int32]*msg.Msg), quorum: quorum, receiveResponse: receiveResponse, slotResp: make(map[int32]int)}
 }
 
 func (p *Proposer) Run() {
-	timerDuration := time.Microsecond * 10
+	timerDuration := time.Microsecond * 100
 	timer := time.After(timerDuration) //timer controls how often request are taken from queue
 
 	var slot int32
@@ -50,47 +48,32 @@ func (p *Proposer) Run() {
 
 			slot++
 			p.initSlot(slot)
-
-			p.wgs[slot].Add(len(p.connections))
-			go p.broadcast(p.wgs[slot], p.pendingMsgs[slot]) //broadcast new msg
+			for i := 0; i < len(p.connections); i++ {
+				p.connections[i].sendChan <- p.pendingMsgs[slot]
+			}
 
 			timer = time.After(timerDuration) //restart timer
 		case resp := <-p.receiveResponse:
 			r := resp.(*msg.Msg)
-			p.wgs[r.GetSlotIndex()].Add(-1) //decrement WaitGroup for broadcast
-		case s := <-p.commit:
-			p.commitValue(p.pendingMsgs[s])
+			p.slotResp[r.GetSlotIndex()]++
+
+			if p.slotResp[r.GetSlotIndex()] == 2 {
+				p.commitValue(p.pendingMsgs[r.GetSlotIndex()])
+			}
 		}
 	}
 }
 
-func (p *Proposer) broadcast(wg *sync.WaitGroup, msg *msg.Msg) {
-	for i := 0; i < len(p.connections); i++ {
-		p.connections[i].sendChan <- msg
-	}
-
-	wg.Wait()
-	p.commit <- msg.GetSlotIndex()
-}
-
 func (p *Proposer) initSlot(slot int32) {
 	p.pendingMsgs[slot] = &msg.Msg{
-		Type:       msg.Prepare,
-		SlotIndex:  slot,
-		Id:         time.Now().UnixNano(),
-		Value:      "req.GetValue()",
-		ProposerId: int32(p.id),
-		Size_:      make([]int32, p.int32Needed)}
-	var wg sync.WaitGroup
-	p.wgs[slot] = &wg
+		SlotIndex: slot}
 }
 
 func (p *Proposer) commitValue(proposerMsg *msg.Msg) {
 	delete(p.pendingMsgs, proposerMsg.GetSlotIndex())
-
+	//fmt.Println("committing ", commits)
 	commits++
-	fmt.Println("commited", commits)
-	if commits == 10000 {
+	if commits == 20000 {
 		elapsed := time.Since(start).Seconds()
 		fmt.Println(commits / elapsed)
 	}

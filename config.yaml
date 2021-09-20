@@ -1,18 +1,18 @@
-msgSize: 16 # size of message in bytes
+msgSize: 0 # size of message in bytes
 bufferSize: 4096000
 acceptors:
   count: 3
   ip:
-    - "127.0.0.1"
-    - "127.0.0.2"
-    - "127.0.0.3"
+    - "10.128.15.213"
+    - "10.128.15.214"
+    - "10.128.15.215"
   port:
-    - "8000"
-    - "8001"
-    - "8002"
+    - "5005"
+    - "5005"
+    - "5005"
 proposers:
   count: 1
   ip:
-    - "127.0.0.1"
+    - "10.128.15.216"
   port:
-    - "9000"
+    - "5005"
