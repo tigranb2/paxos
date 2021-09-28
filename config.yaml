@@ -1,5 +1,5 @@
 msgSize: 1 # size of message in KBs
-bufferSize: 4096000
+quorum: 1
 acceptors:
   count: 3
   ip:

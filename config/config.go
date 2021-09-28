@@ -7,9 +7,9 @@ import (
 )
 
 type Config struct {
-	MsgSize    int `yaml:"msgSize"`
-	BufferSize int `yaml:"bufferSize"`
-	Acceptors  struct {
+	MsgSize   int `yaml:"msgSize"`
+	Quorum    int `yaml:"quorum"`
+	Acceptors struct {
 		Count int      `yaml:"count"`
 		Ip    []string `yaml:"ip"`
 		Port  []string `yaml:"port"`

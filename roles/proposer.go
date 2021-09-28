@@ -86,12 +86,7 @@ func (p *Proposer) Run() {
 
 			p.handleResponse(r)
 			p.slotData[r.GetSlotIndex()].responses++
-
-			//checks if there are sufficient responses to begin checking quorums
-			if p.slotData[r.GetSlotIndex()].responses == len(p.connections) {
-				p.slotData[r.GetSlotIndex()].responses = 0
-				p.checkQuorum(r.GetSlotIndex())
-			}
+			p.checkQuorum(r.GetSlotIndex())
 		}
 	}
 }
@@ -177,7 +172,12 @@ func (p *Proposer) checkQuorum(slot int32) {
 	if proposerMsg.GetType() == msg.Prepare {
 		if sData.promises >= p.quorum { //prepare phase passed
 			proposerMsg.Type = msg.Propose
-		} else { //prepare phase failed
+		} else { //prepare phase not passed
+			//phase will only fail if all acceptors have responded (and quorum not met)
+			if sData.responses < len(p.connections) {
+				return
+			}
+
 			sData.promises = 0
 			proposerMsg.Id = time.Now().UnixNano()
 		}
@@ -193,10 +193,16 @@ func (p *Proposer) checkQuorum(slot int32) {
 			proposerMsg.Type = msg.Prepare
 			proposerMsg.Id = time.Now().UnixNano()
 		} else { //propose phase failed less than 3 times
+			//phase will only fail if all acceptors have responded (and quorum not met)
+			if sData.responses < len(p.connections) {
+				return
+			}
+
 			sData.accepts = 0
 			sData.proposeAttempt++
 		}
 	}
+	sData.responses = 0
 	p.broadcast(proposerMsg.GetSlotIndex())
 }
 

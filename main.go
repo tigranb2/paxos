@@ -21,7 +21,6 @@ func main() {
 	}
 
 	configData := config.ParseConfig()
-	quorum := configData.GetQuorum()
 	acceptorSockets := configData.ParseSockets("acceptor")
 	proposerSockets := configData.ParseSockets("proposer")
 
@@ -31,7 +30,7 @@ func main() {
 		a := roles.InitAcceptor(bytesNeeded, acceptorSockets[nodeId-1], proposerSockets)
 		a.Run()
 	case "p":
-		p := roles.InitProposer(bytesNeeded, acceptorSockets, nodeId, proposerSockets[nodeId-1], quorum)
+		p := roles.InitProposer(bytesNeeded, acceptorSockets, nodeId, proposerSockets[nodeId-1], configData.Quorum)
 		p.Run()
 	case "c":
 		c := roles.InitClient(nodeId, proposerSockets)
