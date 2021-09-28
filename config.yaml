@@ -1,4 +1,4 @@
-msgSize: 0 # size of message in KBs
+msgSize: 1 # size of message in KBs
 quorum: 2
 acceptors:
   count: 3
@@ -7,7 +7,7 @@ acceptors:
     - "127.0.0.2"
     - "127.0.0.3"
   port:
-    - "8000
+    - "8000"
     - "8001"
     - "8002"
 proposers:

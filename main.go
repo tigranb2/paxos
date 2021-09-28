@@ -25,6 +25,10 @@ func main() {
 	proposerSockets := configData.ParseSockets("proposer")
 
 	bytesNeeded := (configData.MsgSize*1024)/8 - 6
+	if bytesNeeded <= 0 {
+		bytesNeeded = 1
+	}
+
 	switch arguments[1] {
 	case "a":
 		a := roles.InitAcceptor(bytesNeeded, acceptorSockets[nodeId-1], proposerSockets)
@@ -37,4 +41,18 @@ func main() {
 		c.CloseLoopClient()
 	}
 
+}
+
+// ! Implement !
+func determineInt32Needed(msgSize int) int {
+	msgSize -= 52 //other fields of msg take up 52 bytes of space
+
+	if r := msgSize % 4; r != 0 { //change msgSize into a multiple of 4 (floor function)
+		msgSize -= r
+	}
+
+	if msgSize <= 13 {
+		return 0
+	}
+	return msgSize / 4
 }
