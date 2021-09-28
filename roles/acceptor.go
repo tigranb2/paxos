@@ -5,10 +5,11 @@ import (
 )
 
 type Acceptor struct {
-	acceptorData map[int32]*consensusData
-	int64Needed  int      //number of int64s needed
-	ip           string   //socket for Acceptor server
-	ips          []string //sockets of all Proposers
+	acceptorData       map[int32]*consensusData
+	int64Needed        int      //number of int64s needed
+	ip                 string   //socket for Acceptor server
+	ips                []string //sockets of all Proposers
+	proposerWriteChans map[int32]chan *msg.Msg
 }
 
 type consensusData struct {
@@ -17,7 +18,7 @@ type consensusData struct {
 }
 
 func InitAcceptor(int64Needed int, ip string, ips []string) Acceptor {
-	return Acceptor{acceptorData: make(map[int32]*consensusData), int64Needed: int64Needed, ip: ip, ips: ips}
+	return Acceptor{acceptorData: make(map[int32]*consensusData), int64Needed: int64Needed, ip: ip, ips: ips, proposerWriteChans: make(map[int32]chan *msg.Msg)}
 }
 
 func (a *Acceptor) Run() {
@@ -50,41 +51,15 @@ func (a *Acceptor) acceptMsg(rec *msg.Msg) (r *msg.Msg) {
 			acceptorSlotData.accepted = rec.GetValue()
 			r = &msg.Msg{Type: msg.Accept, SlotIndex: rec.GetSlotIndex(), Id: rec.GetId(), Value: rec.GetValue(), Size_: make([]int64, a.int64Needed)}
 
-			//send to Learners!
-			//a.broadcast(&msg.SlotValue{Type: msg.Accept, SlotIndex: rec.GetSlotIndex(), Value: rec.GetValue()}, int(rec.GetProposerId()))
+			//send to all learners except for learner of proposer who sent the message
+			for i := 1; i <= len(a.proposerWriteChans); i++ {
+				if int32(i) != rec.GetProposerId() {
+					a.proposerWriteChans[int32(i)] <- &msg.Msg{Type: msg.LearnerMsg, SlotIndex: rec.GetSlotIndex(), Value: rec.GetValue(), Size_: make([]int64, a.int64Needed)}
+				}
+			}
 		} else {
 			r = nil //promised different id
 		}
 	}
 	return r
 }
-
-/*
-func (a *Acceptor) broadcast(m *msg.SlotValue, recProposer int) {
-	for proposerId := range a.ips {
-		if recProposer != proposerId+1 { //does not broadcast to proposer whose value was accepted
-			//dials server if connection does not already exist
-			if _, ok := a.connections[proposerId+1]; !ok {
-				if c := dialServer(a.ips[proposerId]); c != nil {
-					a.connections[proposerId+1] = c //save connection to acceptor's map
-				} else {
-					continue
-				}
-			}
-
-			a.callProposer(proposerId+1, m)
-		}
-	}
-}
-
-func (a *Acceptor) callProposer(proposerId int, m *msg.SlotValue) {
-	c := a.connections[proposerId]
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	//Send message to learner with 1 sec timeout
-	_, err := c.MsgLearner(ctx, m)
-	if err != nil {
-		return
-	}
-}
-*/

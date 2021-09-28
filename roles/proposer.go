@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"paxos/msg"
 	"paxos/queue"
-	"sync"
 	"time"
 )
 
@@ -15,38 +14,37 @@ var start time.Time
 type Proposer struct {
 	clientRequest    chan interface{}
 	clientWriteChans map[int32]chan *msg.SlotValue //channels used for writing responses to clients
-	connections      map[int]*TCP                  //store connections to acceptors
+	connections      []*TCP                        //store connections to acceptors
 	id               int
-	int64Needed      int                 //number of int64s needed
-	ip               string              //socket for Proposer server
-	learnerMsgs      chan *msg.SlotValue //messages for learner go here
-	ledger           map[int32]string    //stores committed values for slots
-	pendingMsgs      map[int32]*msg.Msg
+	int64Needed      int           //number of int64s needed
+	ip               string        //socket for Proposer server
+	learnerMsgs      chan *msg.Msg //messages for learner go here
+	msgs             map[int32]*msg.Msg
 	queue            queue.PriorityQueue
 	quorum           int
-	quorumsData      map[int32]*quorumData //keeps track of responses for quorum
-	quorumStatus     chan *msg.Msg
 	receiveResponse  chan interface{}
-	wgs              map[int32]*sync.WaitGroup //WaitGroup for each slot broadcasting messages
+	slotData         map[int32]*quorumData //keeps track of responses for quorum
 }
 
 type quorumData struct {
+	responses         int
 	promises, accepts int
 	proposeAttempt    int //stores number of times proposer has attempted propose phase
 }
 
 func InitProposer(int64Needed int, ips []string, id int, ip string, quorum int) Proposer { //connections: createConnections(ips),
+	var connections []*TCP
 	receiveResponse := make(chan interface{})
-	connections := make(map[int]*TCP)
-	for acceptorId, acceptorIp := range ips {
-		t := initTCP(msg.ToAcceptor, acceptorIp, receiveResponse)
-		connections[acceptorId+1] = t
+	for _, acceptorIp := range ips {
+		t := initTCP(msg.SendingMsg, acceptorIp, receiveResponse)
+		connections = append(connections, t)
 
 		go t.sendMsgs()
 		go t.receiveMsgs()
+		t.sendChan <- &msg.Msg{ProposerId: int32(id)}
 	}
 
-	return Proposer{clientRequest: make(chan interface{}), clientWriteChans: make(map[int32]chan *msg.SlotValue), connections: connections, id: id, int64Needed: int64Needed, ip: ip, learnerMsgs: make(chan *msg.SlotValue), ledger: make(map[int32]string), pendingMsgs: make(map[int32]*msg.Msg), queue: make(queue.PriorityQueue, 0), quorum: quorum, quorumsData: make(map[int32]*quorumData), quorumStatus: make(chan *msg.Msg), receiveResponse: receiveResponse, wgs: make(map[int32]*sync.WaitGroup)}
+	return Proposer{clientRequest: make(chan interface{}), clientWriteChans: make(map[int32]chan *msg.SlotValue), connections: connections, id: id, int64Needed: int64Needed, ip: ip, learnerMsgs: make(chan *msg.Msg), msgs: make(map[int32]*msg.Msg), queue: make(queue.PriorityQueue, 0), quorum: quorum, slotData: make(map[int32]*quorumData), receiveResponse: receiveResponse}
 }
 
 func (p *Proposer) Run() {
@@ -69,98 +67,70 @@ func (p *Proposer) Run() {
 				slot++
 				req := heap.Pop(&p.queue).(msg.QueueRequest)
 				p.initSlot(slot, req)
-				go p.broadcast(slot) //broadcast new msg
+				p.broadcast(slot) //broadcast new msg
 			}
 			timer = time.After(timerDuration) //restart timer
 		case resp := <-p.receiveResponse:
 			r := resp.(*msg.Msg)
-			p.handleResponse(r)
-			p.wgs[r.GetSlotIndex()].Add(-1) //decrement WaitGroup for broadcast
-		case rec := <-p.quorumStatus:
-			slotQuorumData := p.quorumsData[rec.GetSlotIndex()]
-			proposerMsg := p.pendingMsgs[rec.GetSlotIndex()]
 
-			if _, ok := p.ledger[proposerMsg.GetSlotIndex()]; ok { //check whether slot already has committed value
-				p.ledger[proposerMsg.GetSlotIndex()] = proposerMsg.GetValue()
-				p.commitValue(proposerMsg)
+			//send message to learner if it is designated as a LearnerMsg
+			switch r.GetType() {
+			case msg.LearnerMsg:
+				p.learnerMsgs <- r
 				continue
+			case msg.Commit:
+				p.msgs[r.GetSlotIndex()] = r
+			default:
+				break
 			}
 
-			if rec.GetType() == msg.Prepare {
-				if slotQuorumData.promises >= p.quorum { //prepare phase passed
-					proposerMsg.Type = msg.Propose
-				} else { //prepare phase failed
-					slotQuorumData.promises = 0
-					proposerMsg.Id = time.Now().UnixNano()
-				}
-			} else {
-				if slotQuorumData.accepts >= p.quorum { //propose phase passed
-					p.commitValue(proposerMsg)
-					continue
-				} else if slotQuorumData.proposeAttempt == 3 { //propose phase failed 3 times
-					slotQuorumData.proposeAttempt = 0
-					slotQuorumData.promises = 0
-					slotQuorumData.accepts = 0
-					proposerMsg.Type = msg.Prepare
-					proposerMsg.Id = time.Now().UnixNano()
-				} else { //propose phase failed less than 3 times
-					slotQuorumData.accepts = 0
-					slotQuorumData.proposeAttempt++
-				}
+			p.handleResponse(r)
+			p.slotData[r.GetSlotIndex()].responses++
+
+			//checks if there are sufficient responses to begin checking quorums
+			if p.slotData[r.GetSlotIndex()].responses == len(p.connections) {
+				p.slotData[r.GetSlotIndex()].responses = 0
+				p.checkQuorum(r.GetSlotIndex())
 			}
-			go p.broadcast(proposerMsg.GetSlotIndex())
 		}
 	}
 }
 
 func (p *Proposer) learner() { //manages proposer's ledger
-	type slotValueMin struct { //minimized version of msg.SlotValue for learner's acceptsPerSlot map
+	type msgMin struct { //minimized version of msg.SlotValue for learner's acceptsPerSlot map
 		slotIndex int32
 		value     string
 	}
 
-	acceptsPerSlot := make(map[slotValueMin]int)
+	acceptsPerSlot := make(map[msgMin]int)
 	for {
 		select {
 		case rec := <-p.learnerMsgs:
-			if rec.GetType() == msg.Accept {
-				m := slotValueMin{rec.GetSlotIndex(), rec.GetValue()}
-				acceptsPerSlot[m]++
+			m := msgMin{rec.GetSlotIndex(), rec.GetValue()}
+			acceptsPerSlot[m]++
 
-				if acceptsPerSlot[m] == p.quorum {
-					p.ledger[m.slotIndex] = m.value
-				}
-			} else { //if slot has already been committed
-				p.ledger[rec.GetSlotIndex()] = rec.GetValue()
+			if acceptsPerSlot[m] == p.quorum {
+				p.receiveResponse <- &msg.Msg{Type: msg.Commit, SlotIndex: rec.GetSlotIndex(), Value: rec.GetValue()}
 			}
 		}
 	}
 }
 
 func (p *Proposer) broadcast(slot int32) {
-	var wg sync.WaitGroup
-	p.wgs[slot] = &wg
-
-	for i := 1; i <= len(p.connections); i++ {
-		p.wgs[slot].Add(1)
-		p.connections[i].sendChan <- p.pendingMsgs[slot]
+	for i := 0; i < len(p.connections); i++ {
+		p.connections[i].sendChan <- p.msgs[slot]
 	}
-
-	wg.Wait()
-	//n := rand.Intn(1)
-	//time.Sleep(time.Millisecond * time.Duration(n)) //sleep to break proposer ties
-	p.quorumStatus <- p.pendingMsgs[slot]
 }
 
 func (p *Proposer) handleResponse(rec *msg.Msg) {
 	if rec == nil { //simulate timeout
 		return
 	}
-	proposerMsg, ok := p.pendingMsgs[rec.GetSlotIndex()]
+	proposerMsg, ok := p.msgs[rec.GetSlotIndex()]
 	if !ok {
 		return
 	}
-	slotQuorumData := p.quorumsData[rec.GetSlotIndex()]
+	slotQuorumData := p.slotData[rec.GetSlotIndex()]
 	switch rec.GetType() {
 	case msg.Promise:
 		if proposerMsg.GetType() == msg.Prepare { //check that proposer is asking for promises
@@ -182,22 +152,58 @@ func (p *Proposer) handleResponse(rec *msg.Msg) {
 }
 
 func (p *Proposer) initSlot(slot int32, req msg.QueueRequest) {
-	p.pendingMsgs[slot] = &msg.Msg{
+	p.msgs[slot] = &msg.Msg{
+		Id:         time.Now().UnixNano(),
+		Priority:   req.GetPriority(),
 		Type:       msg.Prepare,
 		SlotIndex:  slot,
-		Id:         time.Now().UnixNano(),
-		Value:      req.GetValue(),
-		Priority:   req.GetPriority(),
 		ProposerId: int32(p.id),
-		FromClient: req.GetFromClient()}
-	p.quorumsData[slot] = &quorumData{}
+		FromClient: req.GetFromClient(),
+		Value:      req.GetValue(),
+		Size_:      make([]int64, p.int64Needed)}
+	p.slotData[slot] = &quorumData{}
+}
+
+func (p *Proposer) checkQuorum(slot int32) {
+	sData := p.slotData[slot]
+	proposerMsg := p.msgs[slot]
+
+	//check whether slot already has committed value
+	if proposerMsg.GetType() == msg.Commit {
+		p.commitValue(proposerMsg)
+		return
+	}
+
+	if proposerMsg.GetType() == msg.Prepare {
+		if sData.promises >= p.quorum { //prepare phase passed
+			proposerMsg.Type = msg.Propose
+		} else { //prepare phase failed
+			sData.promises = 0
+			proposerMsg.Id = time.Now().UnixNano()
+		}
+	} else {
+		if sData.accepts >= p.quorum { //propose phase passed
+			p.msgs[proposerMsg.GetSlotIndex()] = &msg.Msg{Type: msg.Commit, SlotIndex: proposerMsg.GetSlotIndex(), Value: proposerMsg.GetValue()}
+			p.commitValue(proposerMsg)
+			return
+		} else if sData.proposeAttempt == 3 { //propose phase failed 3 times
+			sData.proposeAttempt = 0
+			sData.promises = 0
+			sData.accepts = 0
+			proposerMsg.Type = msg.Prepare
+			proposerMsg.Id = time.Now().UnixNano()
+		} else { //propose phase failed less than 3 times
+			sData.accepts = 0
+			sData.proposeAttempt++
+		}
+	}
+	p.broadcast(proposerMsg.GetSlotIndex())
 }
 
 func (p *Proposer) commitValue(proposerMsg *msg.Msg) {
 	commits++
 	p.clientWriteChans[proposerMsg.GetFromClient()] <- &msg.SlotValue{SlotIndex: proposerMsg.GetSlotIndex(), Value: proposerMsg.GetValue()} //ACK
-	delete(p.pendingMsgs, proposerMsg.GetSlotIndex())
-	delete(p.quorumsData, proposerMsg.GetSlotIndex())
+	delete(p.slotData, proposerMsg.GetSlotIndex())
 
 	if commits == 10000 {
 		elapsed := time.Since(start).Seconds()

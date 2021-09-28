@@ -21,7 +21,7 @@ func InitClient(id int, ips []string) *Client {
 	receiveResponse := make(chan interface{})
 	connections := make(map[int]*TCP)
 	for proposerId, proposerIp := range ips {
-		t := initTCP(msg.ToProposer, proposerIp, receiveResponse)
+		t := initTCP(msg.SendingRequest, proposerIp, receiveResponse)
 		connections[proposerId+1] = t
 	}
 

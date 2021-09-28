@@ -6,9 +6,8 @@ package msg;
 option go_package = "./msg";
 
 enum ConnType{
-  ToAcceptor = 0;
-  ToProposer = 1;
-  ToLearner = 2;
+  SendingMsg = 0;
+  SendingRequest = 1;
 }
 
 //Types of messages nodes can send to one another
@@ -17,19 +16,20 @@ enum Type{
   Promise = 1;
   Propose = 2;
   Accept = 3;
-  Commit = 4; //used by Proposer when communicating with Learner
+  LearnerMsg = 4; //messages sent from Acceptor to Learner
+  Commit = 5; //identifies messages that have been committed
 }
 
 //Data type used for inter-node communication
 message Msg{ //size of 48bytes
-  Type type = 1;
-  int32 slotIndex = 2;
-  int64 id = 3;
-  string value = 4;
-  int64 previousId = 5; //id of previously accepted value
-  int64 priority = 6; //stores priority msg had as QueueRequest
-  int32 proposerId = 7; //id of proposer that sent message
-  int32 fromClient = 8; //id of client that sent request
+  int64 id = 1;
+  int64 priority = 2; //stores priority msg had as QueueRequest
+  Type type = 3;
+  int32 slotIndex = 4;
+  int32 proposerId = 5; //id of proposer that sent message
+  int32 fromClient = 6; //id of client that sent request
+  string value = 7;
+  int64 previousId = 8; //id of previously accepted value
   repeated int64 size = 9; //size of message
 }
 

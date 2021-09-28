@@ -28,21 +28,18 @@ const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
 type ConnType int32
 
 const (
-	ToAcceptor ConnType = 0
-	ToProposer ConnType = 1
-	ToLearner  ConnType = 2
+	SendingMsg     ConnType = 0
+	SendingRequest ConnType = 1
 )
 
 var ConnType_name = map[int32]string{
-	0: "ToAcceptor",
-	1: "ToProposer",
-	2: "ToLearner",
+	0: "SendingMsg",
+	1: "SendingRequest",
 }
 
 var ConnType_value = map[string]int32{
-	"ToAcceptor": 0,
-	"ToProposer": 1,
-	"ToLearner":  2,
+	"SendingMsg":     0,
+	"SendingRequest": 1,
 }
 
 func (ConnType) EnumDescriptor() ([]byte, []int) {
@@ -53,11 +50,12 @@ func (ConnType) EnumDescriptor() ([]byte, []int) {
 type Type int32
 
 const (
-	Prepare Type = 0
-	Promise Type = 1
-	Propose Type = 2
-	Accept  Type = 3
-	Commit  Type = 4
+	Prepare    Type = 0
+	Promise    Type = 1
+	Propose    Type = 2
+	Accept     Type = 3
+	LearnerMsg Type = 4
+	Commit     Type = 5
 )
 
 var Type_name = map[int32]string{
@@ -65,15 +63,17 @@ var Type_name = map[int32]string{
 	1: "Promise",
 	2: "Propose",
 	3: "Accept",
-	4: "Commit",
+	4: "LearnerMsg",
+	5: "Commit",
 }
 
 var Type_value = map[string]int32{
-	"Prepare": 0,
-	"Promise": 1,
-	"Propose": 2,
-	"Accept":  3,
-	"Commit":  4,
+	"Prepare":    0,
+	"Promise":    1,
+	"Propose":    2,
+	"Accept":     3,
+	"LearnerMsg": 4,
+	"Commit":     5,
 }
 
 func (Type) EnumDescriptor() ([]byte, []int) {
@@ -82,14 +82,14 @@ func (Type) EnumDescriptor() ([]byte, []int) {
 
 //Data type used for inter-node communication
 type Msg struct {
-	Type       Type    `protobuf:"varint,1,opt,name=type,proto3,enum=msg.Type" json:"type,omitempty"`
-	SlotIndex  int32   `protobuf:"varint,2,opt,name=slotIndex,proto3" json:"slotIndex,omitempty"`
-	Id         int64   `protobuf:"varint,3,opt,name=id,proto3" json:"id,omitempty"`
-	Value      string  `protobuf:"bytes,4,opt,name=value,proto3" json:"value,omitempty"`
-	PreviousId int64   `protobuf:"varint,5,opt,name=previousId,proto3" json:"previousId,omitempty"`
-	Priority   int64   `protobuf:"varint,6,opt,name=priority,proto3" json:"priority,omitempty"`
-	ProposerId int32   `protobuf:"varint,7,opt,name=proposerId,proto3" json:"proposerId,omitempty"`
-	FromClient int32   `protobuf:"varint,8,opt,name=fromClient,proto3" json:"fromClient,omitempty"`
+	Id         int64   `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	Priority   int64   `protobuf:"varint,2,opt,name=priority,proto3" json:"priority,omitempty"`
+	Type       Type    `protobuf:"varint,3,opt,name=type,proto3,enum=msg.Type" json:"type,omitempty"`
+	SlotIndex  int32   `protobuf:"varint,4,opt,name=slotIndex,proto3" json:"slotIndex,omitempty"`
+	ProposerId int32   `protobuf:"varint,5,opt,name=proposerId,proto3" json:"proposerId,omitempty"`
+	FromClient int32   `protobuf:"varint,6,opt,name=fromClient,proto3" json:"fromClient,omitempty"`
+	Value      string  `protobuf:"bytes,7,opt,name=value,proto3" json:"value,omitempty"`
+	PreviousId int64   `protobuf:"varint,8,opt,name=previousId,proto3" json:"previousId,omitempty"`
 	Size_      []int64 `protobuf:"varint,9,rep,packed,name=size,proto3" json:"size,omitempty"`
 }
 
@@ -125,6 +125,20 @@ func (m *Msg) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_Msg proto.InternalMessageInfo
 
+func (m *Msg) GetId() int64 {
+	if m != nil {
+		return m.Id
+	}
+	return 0
+}
+
+func (m *Msg) GetPriority() int64 {
+	if m != nil {
+		return m.Priority
+	}
+	return 0
+}
+
 func (m *Msg) GetType() Type {
 	if m != nil {
 		return m.Type
@@ -139,9 +153,16 @@ func (m *Msg) GetSlotIndex() int32 {
 	return 0
 }
 
-func (m *Msg) GetId() int64 {
+func (m *Msg) GetProposerId() int32 {
 	if m != nil {
-		return m.Id
+		return m.ProposerId
+	}
+	return 0
+}
+
+func (m *Msg) GetFromClient() int32 {
+	if m != nil {
+		return m.FromClient
 	}
 	return 0
 }
@@ -156,27 +177,6 @@ func (m *Msg) GetValue() string {
 func (m *Msg) GetPreviousId() int64 {
 	if m != nil {
 		return m.PreviousId
-	}
-	return 0
-}
-
-func (m *Msg) GetPriority() int64 {
-	if m != nil {
-		return m.Priority
-	}
-	return 0
-}
-
-func (m *Msg) GetProposerId() int32 {
-	if m != nil {
-		return m.ProposerId
-	}
-	return 0
-}
-
-func (m *Msg) GetFromClient() int32 {
-	if m != nil {
-		return m.FromClient
 	}
 	return 0
 }
@@ -319,34 +319,34 @@ func init() {
 func init() { proto.RegisterFile("msg/msg.proto", fileDescriptor_d0f0a1b324c95b77) }
 
 var fileDescriptor_d0f0a1b324c95b77 = []byte{
-	// 417 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xa4, 0x92, 0xbf, 0x8e, 0xd3, 0x40,
-	0x10, 0xc6, 0x3d, 0x5e, 0x27, 0x17, 0x0f, 0x5c, 0x64, 0xad, 0x28, 0x56, 0x08, 0x56, 0x56, 0x2a,
-	0xeb, 0x8a, 0x20, 0x41, 0x85, 0xa8, 0x20, 0xa2, 0x88, 0x04, 0xd2, 0x61, 0x22, 0x0a, 0x0a, 0x44,
-	0x38, 0x0f, 0xd1, 0x4a, 0xb1, 0xd7, 0xec, 0xae, 0x4f, 0x84, 0x8a, 0x47, 0xe0, 0x31, 0x78, 0x14,
-	0xca, 0x94, 0x57, 0x12, 0xa7, 0xa1, 0xbc, 0x92, 0x12, 0xd9, 0x3e, 0x25, 0x21, 0xed, 0x75, 0xfb,
-	0x7d, 0xf3, 0xe7, 0xb7, 0x33, 0x1a, 0x3c, 0xcd, 0xed, 0xe2, 0x51, 0x6e, 0x17, 0xe3, 0xd2, 0x68,
-	0xa7, 0x39, 0xcb, 0xed, 0x62, 0xf4, 0x17, 0x90, 0xbd, 0xb6, 0x0b, 0xfe, 0x10, 0x03, 0xb7, 0x2a,
-	0x49, 0x40, 0x0c, 0xc9, 0xf0, 0x71, 0x38, 0x6e, 0xd2, 0x66, 0xab, 0x92, 0xd2, 0xd6, 0xe6, 0x0f,
-	0x30, 0xb4, 0x4b, 0xed, 0xa6, 0x45, 0x46, 0x5f, 0x85, 0x1f, 0x43, 0xd2, 0x4b, 0xf7, 0x06, 0x1f,
-	0xa2, 0xaf, 0x32, 0xc1, 0x62, 0x48, 0x58, 0xea, 0xab, 0x8c, 0xdf, 0xc3, 0xde, 0xe5, 0x7c, 0x59,
-	0x91, 0x08, 0x62, 0x48, 0xc2, 0xb4, 0x13, 0x5c, 0x22, 0x96, 0x86, 0x2e, 0x95, 0xae, 0xec, 0x34,
-	0x13, 0xbd, 0x36, 0xfb, 0xc0, 0xe1, 0xf7, 0x71, 0x50, 0x1a, 0xa5, 0x8d, 0x72, 0x2b, 0xd1, 0x6f,
-	0xa3, 0x3b, 0xdd, 0xd5, 0xea, 0x52, 0x5b, 0x32, 0xd3, 0x4c, 0x9c, 0xb4, 0x1f, 0x38, 0x70, 0x9a,
-	0xf8, 0x67, 0xa3, 0xf3, 0xc9, 0x52, 0x51, 0xe1, 0xc4, 0xa0, 0x8b, 0xef, 0x1d, 0xce, 0x31, 0xb0,
-	0xea, 0x1b, 0x89, 0x30, 0x66, 0x09, 0x4b, 0xdb, 0xf7, 0xe8, 0x23, 0xde, 0x7d, 0x53, 0x51, 0x45,
-	0x29, 0x7d, 0xa9, 0xc8, 0xba, 0xff, 0xf8, 0x70, 0xc4, 0xdf, 0x4d, 0xe4, 0x1f, 0x4d, 0x74, 0x40,
-	0x65, 0xc7, 0xd4, 0xd1, 0x07, 0x0c, 0xdf, 0x2e, 0xb5, 0x7b, 0xd7, 0x26, 0xdf, 0x6a, 0xc3, 0x3b,
-	0x3e, 0x3b, 0xe0, 0x9f, 0x3d, 0xc5, 0xc1, 0x44, 0x17, 0x45, 0xd3, 0x85, 0x0f, 0x11, 0x67, 0xfa,
-	0xf9, 0xc5, 0x05, 0x95, 0x4e, 0x9b, 0xc8, 0xeb, 0xf4, 0xf9, 0xcd, 0x86, 0x22, 0xe0, 0xa7, 0x18,
-	0xce, 0xf4, 0x2b, 0x9a, 0x9b, 0x82, 0x4c, 0xe4, 0x9f, 0xbd, 0xc4, 0xa0, 0x2d, 0xbb, 0x83, 0x27,
-	0xe7, 0x86, 0xca, 0xb9, 0xa1, 0xc8, 0xeb, 0x84, 0xce, 0x95, 0xa5, 0x08, 0x6e, 0x44, 0x53, 0x1e,
-	0xf9, 0x1c, 0xb1, 0xdf, 0xf5, 0x8e, 0x58, 0xf3, 0x9e, 0xe8, 0x3c, 0x57, 0x2e, 0x0a, 0x5e, 0x3c,
-	0x5b, 0x6f, 0xa4, 0x77, 0xb5, 0x91, 0xde, 0xf5, 0x46, 0xc2, 0xf7, 0x5a, 0xc2, 0xcf, 0x5a, 0xc2,
-	0xaf, 0x5a, 0xc2, 0xba, 0x96, 0xf0, 0xbb, 0x96, 0xf0, 0xa7, 0x96, 0xde, 0x75, 0x2d, 0xe1, 0xc7,
-	0x56, 0x7a, 0xeb, 0xad, 0xf4, 0xae, 0xb6, 0xd2, 0x7b, 0xdf, 0x1b, 0x37, 0x67, 0xf8, 0xa9, 0xdf,
-	0xde, 0xe1, 0x93, 0x7f, 0x01, 0x00, 0x00, 0xff, 0xff, 0xb0, 0x2c, 0x0d, 0xfe, 0x98, 0x02, 0x00,
-	0x00,
+	// 424 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x52, 0xb1, 0x8e, 0xd3, 0x40,
+	0x10, 0xf5, 0x78, 0xed, 0x5c, 0x3c, 0x40, 0x64, 0xad, 0x28, 0x56, 0x08, 0x56, 0x56, 0x2a, 0xeb,
+	0x8a, 0x20, 0x41, 0x49, 0x05, 0xa9, 0x22, 0x71, 0x12, 0xf8, 0x80, 0x82, 0x02, 0x11, 0xce, 0x83,
+	0xb5, 0x52, 0xec, 0x35, 0xbb, 0xeb, 0x13, 0xa1, 0xe2, 0x13, 0xf8, 0x0c, 0x3e, 0x85, 0x32, 0xe5,
+	0x95, 0xc4, 0x69, 0x28, 0xaf, 0xa4, 0x44, 0x76, 0x42, 0x2e, 0xa4, 0xa2, 0xdb, 0xf7, 0xde, 0xe8,
+	0xbd, 0x99, 0xd9, 0xc1, 0x3b, 0xa5, 0x2d, 0x1e, 0x96, 0xb6, 0x98, 0xd4, 0x46, 0x3b, 0xcd, 0x59,
+	0x69, 0x8b, 0xf1, 0x6f, 0x40, 0x76, 0x66, 0x0b, 0x3e, 0x42, 0x5f, 0xe5, 0x02, 0x12, 0x48, 0x59,
+	0xe6, 0xab, 0x9c, 0xdf, 0xc3, 0x61, 0x6d, 0x94, 0x36, 0xca, 0x2d, 0x85, 0xdf, 0xb3, 0x7b, 0xcc,
+	0x1f, 0x60, 0xe0, 0x96, 0x35, 0x09, 0x96, 0x40, 0x3a, 0x7a, 0x14, 0x4d, 0x3a, 0xcb, 0x57, 0xcb,
+	0x9a, 0xb2, 0x9e, 0xe6, 0xf7, 0x31, 0xb2, 0x0b, 0xed, 0x66, 0x55, 0x4e, 0x9f, 0x45, 0x90, 0x40,
+	0x1a, 0x66, 0x37, 0x04, 0x97, 0x88, 0xb5, 0xd1, 0xb5, 0xb6, 0x64, 0x66, 0xb9, 0x08, 0x7b, 0xf9,
+	0x80, 0xe9, 0xf4, 0x8f, 0x46, 0x97, 0xd3, 0x85, 0xa2, 0xca, 0x89, 0xc1, 0x56, 0xbf, 0x61, 0xf8,
+	0x5d, 0x0c, 0x2f, 0xe7, 0x8b, 0x86, 0xc4, 0x49, 0x02, 0x69, 0x94, 0x6d, 0xc1, 0xd6, 0x95, 0x2e,
+	0x95, 0x6e, 0xec, 0x2c, 0x17, 0xc3, 0xbe, 0xe1, 0x03, 0x86, 0x73, 0x0c, 0xac, 0xfa, 0x42, 0x22,
+	0x4a, 0x58, 0xca, 0xb2, 0xfe, 0x3d, 0x7e, 0x8f, 0xb7, 0x5f, 0x36, 0xd4, 0x50, 0x46, 0x9f, 0x1a,
+	0xb2, 0xee, 0x9f, 0x91, 0xe1, 0x68, 0xe4, 0x7d, 0xaa, 0x7f, 0x94, 0x7a, 0xd0, 0x2b, 0x3b, 0xee,
+	0x75, 0xfc, 0x0e, 0xa3, 0xf3, 0x85, 0x76, 0x6f, 0xfa, 0xe2, 0xbf, 0x5b, 0x83, 0xff, 0xd8, 0x9a,
+	0x7f, 0xbc, 0xb5, 0x7d, 0x3e, 0x3b, 0xc8, 0x3f, 0x9d, 0xe0, 0x70, 0xaa, 0xab, 0xaa, 0x73, 0xe1,
+	0x23, 0xc4, 0x73, 0xaa, 0x72, 0x55, 0x15, 0x67, 0xb6, 0x88, 0x3d, 0xce, 0x71, 0xb4, 0xc3, 0xbb,
+	0xf9, 0x62, 0x38, 0x7d, 0x8d, 0x41, 0x5f, 0x7b, 0x0b, 0x4f, 0x5e, 0x18, 0xaa, 0xe7, 0x86, 0x62,
+	0x6f, 0x0b, 0x74, 0xa9, 0x2c, 0xc5, 0xb0, 0x03, 0xdd, 0x5f, 0xc4, 0x3e, 0x47, 0x1c, 0x3c, 0xbd,
+	0xb8, 0xa0, 0xda, 0xc5, 0xac, 0xb3, 0x7f, 0x4e, 0x73, 0x53, 0x91, 0xe9, 0xec, 0x83, 0x4e, 0x9b,
+	0xea, 0xb2, 0x54, 0x2e, 0x0e, 0x9f, 0x3d, 0x59, 0xad, 0xa5, 0x77, 0xb5, 0x96, 0xde, 0xf5, 0x5a,
+	0xc2, 0xd7, 0x56, 0xc2, 0xf7, 0x56, 0xc2, 0x8f, 0x56, 0xc2, 0xaa, 0x95, 0xf0, 0xb3, 0x95, 0xf0,
+	0xab, 0x95, 0xde, 0x75, 0x2b, 0xe1, 0xdb, 0x46, 0x7a, 0xab, 0x8d, 0xf4, 0xae, 0x36, 0xd2, 0x7b,
+	0x1b, 0x4e, 0xba, 0x5b, 0xfc, 0x30, 0xe8, 0x8f, 0xf1, 0xf1, 0x9f, 0x00, 0x00, 0x00, 0xff, 0xff,
+	0x6e, 0x0a, 0x11, 0xed, 0x9d, 0x02, 0x00, 0x00,
 }
 
 func (x ConnType) String() string {
@@ -382,28 +382,28 @@ func (this *Msg) Equal(that interface{}) bool {
 	} else if this == nil {
 		return false
 	}
+	if this.Id != that1.Id {
+		return false
+	}
+	if this.Priority != that1.Priority {
+		return false
+	}
 	if this.Type != that1.Type {
 		return false
 	}
 	if this.SlotIndex != that1.SlotIndex {
 		return false
 	}
-	if this.Id != that1.Id {
+	if this.ProposerId != that1.ProposerId {
+		return false
+	}
+	if this.FromClient != that1.FromClient {
 		return false
 	}
 	if this.Value != that1.Value {
 		return false
 	}
 	if this.PreviousId != that1.PreviousId {
-		return false
-	}
-	if this.Priority != that1.Priority {
-		return false
-	}
-	if this.ProposerId != that1.ProposerId {
-		return false
-	}
-	if this.FromClient != that1.FromClient {
 		return false
 	}
 	if len(this.Size_) != len(that1.Size_) {
@@ -482,14 +482,14 @@ func (this *Msg) GoString() string {
 	}
 	s := make([]string, 0, 13)
 	s = append(s, "&msg.Msg{")
+	s = append(s, "Id: "+fmt.Sprintf("%#v", this.Id)+",\n")
+	s = append(s, "Priority: "+fmt.Sprintf("%#v", this.Priority)+",\n")
 	s = append(s, "Type: "+fmt.Sprintf("%#v", this.Type)+",\n")
 	s = append(s, "SlotIndex: "+fmt.Sprintf("%#v", this.SlotIndex)+",\n")
-	s = append(s, "Id: "+fmt.Sprintf("%#v", this.Id)+",\n")
-	s = append(s, "Value: "+fmt.Sprintf("%#v", this.Value)+",\n")
-	s = append(s, "PreviousId: "+fmt.Sprintf("%#v", this.PreviousId)+",\n")
-	s = append(s, "Priority: "+fmt.Sprintf("%#v", this.Priority)+",\n")
 	s = append(s, "ProposerId: "+fmt.Sprintf("%#v", this.ProposerId)+",\n")
 	s = append(s, "FromClient: "+fmt.Sprintf("%#v", this.FromClient)+",\n")
+	s = append(s, "Value: "+fmt.Sprintf("%#v", this.Value)+",\n")
+	s = append(s, "PreviousId: "+fmt.Sprintf("%#v", this.PreviousId)+",\n")
 	s = append(s, "Size_: "+fmt.Sprintf("%#v", this.Size_)+",\n")
 	s = append(s, "}")
 	return strings.Join(s, "")
@@ -565,45 +565,45 @@ func (m *Msg) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0x4a
 	}
-	if m.FromClient != 0 {
-		i = encodeVarintMsg(dAtA, i, uint64(m.FromClient))
-		i--
-		dAtA[i] = 0x40
-	}
-	if m.ProposerId != 0 {
-		i = encodeVarintMsg(dAtA, i, uint64(m.ProposerId))
-		i--
-		dAtA[i] = 0x38
-	}
-	if m.Priority != 0 {
-		i = encodeVarintMsg(dAtA, i, uint64(m.Priority))
-		i--
-		dAtA[i] = 0x30
-	}
 	if m.PreviousId != 0 {
 		i = encodeVarintMsg(dAtA, i, uint64(m.PreviousId))
 		i--
-		dAtA[i] = 0x28
+		dAtA[i] = 0x40
 	}
 	if len(m.Value) > 0 {
 		i -= len(m.Value)
 		copy(dAtA[i:], m.Value)
 		i = encodeVarintMsg(dAtA, i, uint64(len(m.Value)))
 		i--
-		dAtA[i] = 0x22
+		dAtA[i] = 0x3a
 	}
-	if m.Id != 0 {
-		i = encodeVarintMsg(dAtA, i, uint64(m.Id))
+	if m.FromClient != 0 {
+		i = encodeVarintMsg(dAtA, i, uint64(m.FromClient))
 		i--
-		dAtA[i] = 0x18
+		dAtA[i] = 0x30
+	}
+	if m.ProposerId != 0 {
+		i = encodeVarintMsg(dAtA, i, uint64(m.ProposerId))
+		i--
+		dAtA[i] = 0x28
 	}
 	if m.SlotIndex != 0 {
 		i = encodeVarintMsg(dAtA, i, uint64(m.SlotIndex))
 		i--
-		dAtA[i] = 0x10
+		dAtA[i] = 0x20
 	}
 	if m.Type != 0 {
 		i = encodeVarintMsg(dAtA, i, uint64(m.Type))
+		i--
+		dAtA[i] = 0x18
+	}
+	if m.Priority != 0 {
+		i = encodeVarintMsg(dAtA, i, uint64(m.Priority))
+		i--
+		dAtA[i] = 0x10
+	}
+	if m.Id != 0 {
+		i = encodeVarintMsg(dAtA, i, uint64(m.Id))
 		i--
 		dAtA[i] = 0x8
 	}
@@ -707,14 +707,23 @@ func (m *Msg) Size() (n int) {
 	}
 	var l int
 	_ = l
+	if m.Id != 0 {
+		n += 1 + sovMsg(uint64(m.Id))
+	}
+	if m.Priority != 0 {
+		n += 1 + sovMsg(uint64(m.Priority))
+	}
 	if m.Type != 0 {
 		n += 1 + sovMsg(uint64(m.Type))
 	}
 	if m.SlotIndex != 0 {
 		n += 1 + sovMsg(uint64(m.SlotIndex))
 	}
-	if m.Id != 0 {
-		n += 1 + sovMsg(uint64(m.Id))
+	if m.ProposerId != 0 {
+		n += 1 + sovMsg(uint64(m.ProposerId))
+	}
+	if m.FromClient != 0 {
+		n += 1 + sovMsg(uint64(m.FromClient))
 	}
 	l = len(m.Value)
 	if l > 0 {
@@ -722,15 +731,6 @@ func (m *Msg) Size() (n int) {
 	}
 	if m.PreviousId != 0 {
 		n += 1 + sovMsg(uint64(m.PreviousId))
-	}
-	if m.Priority != 0 {
-		n += 1 + sovMsg(uint64(m.Priority))
-	}
-	if m.ProposerId != 0 {
-		n += 1 + sovMsg(uint64(m.ProposerId))
-	}
-	if m.FromClient != 0 {
-		n += 1 + sovMsg(uint64(m.FromClient))
 	}
 	if len(m.Size_) > 0 {
 		l = 0
@@ -791,14 +791,14 @@ func (this *Msg) String() string {
 		return "nil"
 	}
 	s := strings.Join([]string{`&Msg{`,
+		`Id:` + fmt.Sprintf("%v", this.Id) + `,`,
+		`Priority:` + fmt.Sprintf("%v", this.Priority) + `,`,
 		`Type:` + fmt.Sprintf("%v", this.Type) + `,`,
 		`SlotIndex:` + fmt.Sprintf("%v", this.SlotIndex) + `,`,
-		`Id:` + fmt.Sprintf("%v", this.Id) + `,`,
-		`Value:` + fmt.Sprintf("%v", this.Value) + `,`,
-		`PreviousId:` + fmt.Sprintf("%v", this.PreviousId) + `,`,
-		`Priority:` + fmt.Sprintf("%v", this.Priority) + `,`,
 		`ProposerId:` + fmt.Sprintf("%v", this.ProposerId) + `,`,
 		`FromClient:` + fmt.Sprintf("%v", this.FromClient) + `,`,
+		`Value:` + fmt.Sprintf("%v", this.Value) + `,`,
+		`PreviousId:` + fmt.Sprintf("%v", this.PreviousId) + `,`,
 		`Size_:` + fmt.Sprintf("%v", this.Size_) + `,`,
 		`}`,
 	}, "")
@@ -867,6 +867,44 @@ func (m *Msg) Unmarshal(dAtA []byte) error {
 		switch fieldNum {
 		case 1:
 			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Id", wireType)
+			}
+			m.Id = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowMsg
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Id |= int64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 2:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Priority", wireType)
+			}
+			m.Priority = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowMsg
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Priority |= int64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 3:
+			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Type", wireType)
 			}
 			m.Type = 0
@@ -884,7 +922,7 @@ func (m *Msg) Unmarshal(dAtA []byte) error {
 					break
 				}
 			}
-		case 2:
+		case 4:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field SlotIndex", wireType)
 			}
@@ -903,11 +941,11 @@ func (m *Msg) Unmarshal(dAtA []byte) error {
 					break
 				}
 			}
-		case 3:
+		case 5:
 			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Id", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field ProposerId", wireType)
 			}
-			m.Id = 0
+			m.ProposerId = 0
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return ErrIntOverflowMsg
@@ -917,12 +955,31 @@ func (m *Msg) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.Id |= int64(b&0x7F) << shift
+				m.ProposerId |= int32(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
 			}
-		case 4:
+		case 6:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field FromClient", wireType)
+			}
+			m.FromClient = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowMsg
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.FromClient |= int32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 7:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Value", wireType)
 			}
@@ -954,7 +1011,7 @@ func (m *Msg) Unmarshal(dAtA []byte) error {
 			}
 			m.Value = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-		case 5:
+		case 8:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field PreviousId", wireType)
 			}
@@ -969,63 +1026,6 @@ func (m *Msg) Unmarshal(dAtA []byte) error {
 				b := dAtA[iNdEx]
 				iNdEx++
 				m.PreviousId |= int64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		case 6:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Priority", wireType)
-			}
-			m.Priority = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowMsg
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.Priority |= int64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		case 7:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field ProposerId", wireType)
-			}
-			m.ProposerId = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowMsg
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.ProposerId |= int32(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		case 8:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field FromClient", wireType)
-			}
-			m.FromClient = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowMsg
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.FromClient |= int32(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}

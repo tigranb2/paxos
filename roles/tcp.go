@@ -52,20 +52,14 @@ func (t *TCP) sendMsgs() {
 			var err error
 
 			switch t.connType {
-			case msg.ToAcceptor:
+			case msg.SendingMsg:
 				if m, ok := req.(*msg.Msg); ok {
 					data, err = m.Marshal()
 				} else {
 					log.Fatalln("error converting message to proper type")
 				}
-			case msg.ToProposer:
+			case msg.SendingRequest:
 				if m, ok := req.(*msg.QueueRequest); ok {
-					data, err = m.Marshal()
-				} else {
-					log.Fatalln("error converting message to proper type")
-				}
-			case msg.ToLearner:
-				if m, ok := req.(*msg.SlotValue); ok {
 					data, err = m.Marshal()
 				} else {
 					log.Fatalln("error converting message to proper type")
@@ -97,14 +91,14 @@ func (t *TCP) receiveMsgs() {
 		}
 
 		switch t.connType {
-		case msg.ToAcceptor:
+		case msg.SendingMsg:
 			var rec = &msg.Msg{}
 			if err = rec.Unmarshal(readBuf[:n]); err == nil {
 				t.receiveChan <- rec
 			} else {
 				log.Fatalln("error unmarshalling message: ", err)
 			}
-		case msg.ToProposer:
+		case msg.SendingRequest:
 			var rec = &msg.SlotValue{}
 			if err = rec.Unmarshal(readBuf[:n]); err == nil {
 				t.receiveChan <- rec
@@ -176,22 +170,36 @@ func (a *Acceptor) acceptorServer() {
 			reader, writer := initReaderWriter(conn)
 			readBuf := make([]byte, 4096*100)
 
-			/*
-				//reads proposerId, used to identify channel for accessing proposer writer
-				//not needed for current design
+			//initial message from proposer that contains its ID
+			writeChan := make(chan *msg.Msg)
+			var idMsg = &msg.Msg{}
 
-				writeChan := make(chan *msg.Msg)
-				var idMsg = &msg.Msg{} //msg from Proposer that will contain its ID
+			n, errF := bufRead(reader, readBuf)
+			if errF != nil {
+				log.Fatalln("error reading from reader: ", errF)
+			}
+			if errF = idMsg.Unmarshal(readBuf[:n]); errF != nil {
+				log.Fatalln("error unmarshalling value: ", errF)
+			}
+			a.proposerWriteChans[idMsg.GetProposerId()] = writeChan
 
-				n, errF := bufRead(reader, readBuf)
-				if errF != nil {
-					log.Fatalln("error reading from reader: ", errF)
+			//go-routine that sends messages to the connected proposer's learner
+			go func() {
+				for {
+					select {
+					case m := <-writeChan:
+						//write to learner
+						data, errF := m.Marshal()
+						if errF = bufWrite(writer, data); errF != nil {
+							log.Fatalln("error writing data: ", errF)
+						}
+
+						if errF = writer.Flush(); errF != nil {
+							log.Fatalln("error flushing writer: ", errF)
+						}
+					}
 				}
-				if errF = idMsg.Unmarshal(readBuf[:n]); errF != nil {
-					log.Fatalln("error unmarshalling value: ", errF)
-				}
-				a.proposerWriteChans[idMsg.GetProposerId()] = writeChan
-			*/
+			}()
 
 			for {
 				var rec = &msg.Msg{}
@@ -206,6 +214,9 @@ func (a *Acceptor) acceptorServer() {
 				}
 
 				resp := a.acceptMsg(rec)
+				if resp == nil {
+					continue
+				}
 
 				//write response to proposer
 				data, errF := resp.Marshal()
