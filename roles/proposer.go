@@ -79,6 +79,7 @@ func (p *Proposer) Run() {
 				p.learnerMsgs <- r
 				continue
 			case msg.Commit:
+				p.commitValue(p.msgs[r.GetSlotIndex()])
 				p.msgs[r.GetSlotIndex()] = r
 			default:
 				break
@@ -165,7 +166,6 @@ func (p *Proposer) checkQuorum(slot int32) {
 
 	//check whether slot already has committed value
 	if proposerMsg.GetType() == msg.Commit {
-		p.commitValue(proposerMsg)
 		return
 	}
 
@@ -209,7 +209,7 @@ func (p *Proposer) checkQuorum(slot int32) {
 func (p *Proposer) commitValue(proposerMsg *msg.Msg) {
 	commits++
 	p.clientWriteChans[proposerMsg.GetFromClient()] <- &msg.SlotValue{SlotIndex: proposerMsg.GetSlotIndex(), Value: proposerMsg.GetValue()} //ACK
-	delete(p.slotData, proposerMsg.GetSlotIndex())
+	//delete(p.slotData, proposerMsg.GetSlotIndex())
 
 	if commits == 10000 {
 		elapsed := time.Since(start).Seconds()

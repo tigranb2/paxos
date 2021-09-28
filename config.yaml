@@ -1,5 +1,5 @@
-msgSize: 1 # size of message in KBs
-quorum: 1
+msgSize: 0 # size of message in KBs
+quorum: 2
 acceptors:
   count: 3
   ip:
