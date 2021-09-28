@@ -1,7 +1,6 @@
 package roles
 
 import (
-	"fmt"
 	"paxos/msg"
 	"paxos/randstring"
 	"time"
@@ -36,8 +35,8 @@ func (c *Client) CloseLoopClient() {
 		req := &msg.QueueRequest{Priority: time.Now().UnixNano(), Value: randstring.FixedLengthString(10)}
 		c.connections[c.proposerId].sendChan <- req
 		select {
-		case resp := <-c.receiveResponse:
-			fmt.Println(resp)
+		case <-c.receiveResponse:
+			continue
 		}
 	}
 
