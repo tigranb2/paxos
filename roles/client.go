@@ -1,6 +1,7 @@
 package roles
 
 import (
+	"fmt"
 	"paxos/msg"
 	"paxos/randstring"
 	"time"
@@ -26,15 +27,23 @@ func InitClient(id int, ips []string) *Client {
 }
 
 func (c *Client) CloseLoopClient() {
+	var latencies int64
+	responsesRec := 0
 	go c.connections[c.proposerId].sendMsgs()
 	go c.connections[c.proposerId].receiveMsgs()
 
 	for {
 		req := &msg.QueueRequest{Priority: time.Now().UnixNano(), Value: randstring.FixedLengthString(10)}
 		c.connections[c.proposerId].sendChan <- req
+		sent := time.Now()
 		select {
 		case <-c.receiveResponse:
-			continue
+			responsesRec++
+			latency := time.Since(sent).Nanoseconds()
+			latencies += latency
+			if responsesRec == 1000 {
+				fmt.Println(float64(latencies/int64(responsesRec)) / 1000000)
+			}
 		}
 	}
 
