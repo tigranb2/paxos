@@ -12,7 +12,7 @@ import (
 func main() {
 	arguments := os.Args
 	if len(arguments) < 3 {
-		fmt.Println("Please specify node type (p, a) and node id")
+		fmt.Println("Please specify node type (p, a, c), and node id")
 		return
 	}
 	nodeId, err := strconv.Atoi(arguments[2])

@@ -19,10 +19,8 @@ type Client struct {
 func InitClient(id int, ips []string) *Client {
 	receiveResponse := make(chan interface{})
 	connections := make(map[int]*TCP)
-	for proposerId, proposerIp := range ips {
-		t := initTCP(msg.SendingRequest, proposerIp, receiveResponse)
-		connections[proposerId+1] = t
-	}
+	t := initTCP(msg.SendingRequest, ips[id-1], receiveResponse)
+	connections[id] = t
 
 	return &Client{connections: connections, receiveResponse: receiveResponse, ips: ips, originalId: id, proposerId: id, requests: make(chan *msg.QueueRequest), stopUnicast: make(chan bool)}
 }

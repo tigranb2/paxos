@@ -112,21 +112,20 @@ func (t *TCP) receiveMsgs() {
 //proposerServer receives messages from clients
 func (p *Proposer) proposerServer() {
 	listener := initListener(p.ip)
-	var clientId int32
+	var clientCount int32
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
 			log.Fatalln("error accepting connection: ", err)
 		}
-		clientId++
 
-		go func() {
+		clientCount++
+		go func(clientId int32) {
 			reader, writer := initReaderWriter(conn)
 			readBuf := make([]byte, 4096*100)
 
 			writeChan := make(chan *msg.SlotValue)
 			p.clientWriteChans[clientId] = writeChan
-
 			for {
 				var rec = &msg.QueueRequest{}
 				//read QueueRequest from client
@@ -153,7 +152,7 @@ func (p *Proposer) proposerServer() {
 					log.Fatalln("error flushing writer: ", errF)
 				}
 			}
-		}()
+		}(clientCount)
 	}
 }
 
